@@ -1,6 +1,0 @@
-{
-  "DOLLAR_AMOUNT": "^\\$(?!0.00)\\d+\\.\\d{2}$",
-  "VENDOR_ITEM": "^\\d{4,5}?$",
-  "UNITS_RECEIVED": "^\\d+\\.0{2}$",
-  "RE_STRIPPER": "^\\^|\\$$"
-}
