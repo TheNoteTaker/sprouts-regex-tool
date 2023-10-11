@@ -175,22 +175,6 @@ class RegexDict(RegexCollection):
         """Return an iterator for the collection of regex patterns."""
         return iter(self.regex_patterns.values())
 
-    def to_string(self, sep: str = "\n") -> str:
-        """Return the collection of regex patterns."""
-        strings = []
-        for k, v in self.regex_patterns.items():
-            if isinstance(v, list):
-                # Key has a `list` of patterns instead of a single string.
-                pattern_str = ", ".join([str(pattern) for pattern in v])
-            else:
-                # Key has a single pattern instead of a `list` of patterns.
-                pattern_str = str(v)
-
-            strings.append(f"{k}:{pattern_str}")
-
-        # Return the `list` of patterns as a string
-        return sep.join(strings)
-
     def add_patterns(self, patterns: Sequence[T] | str) -> None:
         """Add regex patterns to the collection."""
         if isinstance(patterns, dict):
@@ -212,11 +196,6 @@ class RegexDict(RegexCollection):
             # A single pattern was provided
             self.regex_patterns[len(self.regex_patterns)] \
                 = RegexPattern(patterns)
-
-    def load_from_file(self, filename: str) -> None:
-        """Load regex patterns from a file."""
-        self.regex_patterns = utils.read_json(filename)
-        print(f"Loaded patterns from {filename}")
 
     def remove_pattern(self, pattern: str) -> int:
         """
@@ -245,8 +224,26 @@ class RegexDict(RegexCollection):
 
         return 1
 
+    def load_from_file(self, filename: str) -> None:
+        """Load regex patterns from a file."""
+        self.regex_patterns = utils.read_json(filename)
+        print(f"Loaded patterns from {filename}")
+
     def to_list(self) -> list[list[str | Any]]:
-        """Return the `list` of regex patterns."""
+        """
+        Return the `list` of regex patterns.
+
+        All patterns are returned with both their hash and a `list` of
+        patterns.
+
+        If the key has more than one sublist, an exception
+        will occur.
+
+        Returns:
+            A `list` of patterns with indexes returning:
+                0: The key name
+                1: A `list` containing one or more patterns
+        """
         ret = []
         for name, pattern in self.regex_patterns.items():
             pattern_string = []
@@ -262,6 +259,50 @@ class RegexDict(RegexCollection):
             ret.append([name, pattern_string])
 
         return ret
+
+    def to_dict(self) -> dict[str, str]:
+        """
+        Return the `dict` of regex patterns.
+
+        All patterns are returned with both their hash and either a
+        single `str` pattern or a `list` of patterns.
+        Returns:
+            A `dict` of patterns with keys returning:
+                0: The key name
+                1: A `str` if the key has a single pattern, or a `list`
+                    of patterns if the key has more than one pattern.
+        """
+        ret = {}
+        for name, pattern in self.regex_patterns.items():
+            if isinstance(pattern, list):
+                # Key has a `list` of patterns instead of a single string.
+                pattern_string = []
+                for sub_pattern in pattern:
+                    pattern_string.append(str(sub_pattern))
+            else:
+                # Key has a single pattern instead of a `list` of patterns.
+                pattern_string = str(pattern)
+
+            # Add the name and pattern to the `dict` of patterns.
+            ret[name] = pattern_string
+
+        return ret
+
+    def to_string(self, sep: str = "\n") -> str:
+        """Return the collection of regex patterns."""
+        strings = []
+        for k, v in self.regex_patterns.items():
+            if isinstance(v, list):
+                # Key has a `list` of patterns instead of a single string.
+                pattern_str = ", ".join([str(pattern) for pattern in v])
+            else:
+                # Key has a single pattern instead of a `list` of patterns.
+                pattern_str = str(v)
+
+            strings.append(f"{k}:{pattern_str}")
+
+        # Return the `list` of patterns as a string
+        return sep.join(strings)
 
 
 if __name__ == "__main__":

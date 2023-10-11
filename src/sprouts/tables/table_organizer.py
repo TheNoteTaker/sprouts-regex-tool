@@ -72,17 +72,11 @@ class TableOrganizer:
         return len(self.tables)
 
 
-class RegexTableOrganizer(TableOrganizer):
+class TableSegmentor(TableOrganizer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pad_char = "_"
-        self.patterns = {
-            "DOLLAR_AMOUNT": "^\\$(?!0.00)\\d+\\.\\d{2}$",
-            "VENDOR_ITEM": "^\\d{4,5}?$",
-            "UNITS_RECEIVED": "^\\d+\\.0{2}$",
-            "RE_STRIPPER": "^\\^|\\$$"
-        }
 
     @staticmethod
     def _segment(data: list[str],
@@ -336,7 +330,7 @@ class RegexTableOrganizer(TableOrganizer):
     def get_patterns(self) -> str:
         """Return all regex patterns in all stored tables."""
         ret = ""
-        for table in self.tables:
+        for table in self.tables.values():
             ret += table.patterns.to_string()
 
         return ret

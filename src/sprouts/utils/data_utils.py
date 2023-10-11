@@ -272,27 +272,27 @@ def unique_list(data: list,
     Returns a list of unique items from the provided list. If `sort`
     is True, the list will be sorted before returning. If `ignore`
     is provided, the items in the list will be filtered before
-    returning.
+    returning. All `null` values are removed.
 
     Args:
         data: A `list` of items.
         sort: Whether to sort the list before returning.
-        remove: A string of characters to ignore when filtering the
-            list.
+        remove: A string of characters to remove from each item when
+            filtering the list.
 
     Returns:
         A `list` of unique items from the provided list, optionally
         sorted and filtered.
     """
     for char in remove:
-        # Remove ignored items from the list
-        data = [item for item in data if item != char]
+        # Remove items from the `remove` list
+        data = [item for item in data if item != char and item is not None]
 
-    # Remove duplicates from the list if `sort` is True
+    # Remove duplicates and sort if `sort` is True
     return sorted(set(data)) if sort else list(set(data))
 
 
 def get_max_str_length(data: any) -> int:
     """Get the length of the longest string in a `list` of strings."""
-    data = flatten(stringify(data))
-    return max([len(item) for item in data])
+    data = stringify(flatten(data))
+    return max([len(item.strip()) for item in data]) if data else 0

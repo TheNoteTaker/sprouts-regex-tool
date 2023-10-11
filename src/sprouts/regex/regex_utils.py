@@ -12,7 +12,10 @@ class RegexSearch:
         return getattr(re, item)
 
     @staticmethod
-    def concat_patterns(patterns: list[str], sep: str = "|") -> str:
+    def concat_patterns(patterns: list[str],
+                        sep: str = "|",
+                        anchors: bool = True,
+                        ) -> str:
         """
         Concatenate multiple regex patterns into one pattern.
 
@@ -24,6 +27,8 @@ class RegexSearch:
         Args:
             patterns: The patterns to concatenate.
             sep: The separator to use between each pattern.
+            anchors: Whether to add beginning and ending anchors to the
+                overall pattern.
 
         Returns:
             The concatenated regex pattern.
@@ -32,8 +37,10 @@ class RegexSearch:
         # Remove the pattern wrapper from each pattern
         ret = [RegexSearch.strip_pattern(pattern) for pattern in patterns]
 
-        # Add beginning and ending anchors to the overall pattern
-        return "^(?:" + f"{sep}".join(ret) + ")$"
+        if anchors:
+            return "^(?:" + f"{sep}".join(ret) + ")$"
+        else:
+            return "(?:" + f"{sep}".join(ret) + ")"
 
     @staticmethod
     def strip_pattern(pattern: str) -> str:
@@ -89,8 +96,8 @@ class RegexSearch:
 
         Unpacks `base_list` and `compare_lists` if they are nested
         lists. Locates all items in `compare_lists` that exist in
-        `base_list` and returns them. Also returns that were not found
-        in `base_list`.
+        `base_list` and returns them. Also returns items that were not
+        found in `base_list`.
 
         Args:
             base_list: `list`(s) to compare against.

@@ -1,10 +1,10 @@
 from sprouts import utils
-from sprouts.tables import RegexTableOrganizer
+from sprouts.tables import TableSegmentor
 
 
 def main():
     # Driver code
-    sprouts_parser = RegexTableOrganizer()
+    sprouts_parser = TableSegmentor()
 
     # Determine if config file exists
 
@@ -39,8 +39,10 @@ def main():
     else:
         # Prompt user to input data since they chose not to use a file
         # Get total number of shipments
-        shipment_amount = int(utils.input_("^[1-9][0-9]*$",
-                                          message="Enter Total Shipments: "))
+        shipment_amount = int(utils.input_(
+            valid_input="^[1-9][0-9]*$",
+            message="Enter Total Shipments: "
+        ))
         rows = []
         # for shipment in range(shipment_amount):
         #     # Get data for each shipment
@@ -49,7 +51,7 @@ def main():
         #     rows.append(utils.read_input_lines())
         #     # Separate shipments with a dashed line
         #     rows.append("|")
-        rows = [["000001", "0324", "17842", "001", "3281"],
+        rows = [["000001", "0324", "17842", "001", "7131", "3281"],
                 ["|"],
                 ["0002", "9243", "7131", "9942", "9999"],
                 ["|"],
@@ -59,15 +61,8 @@ def main():
     sprouts_parser.create_table(rows=rows[:-1], invoice_scan=0)
 
     # Print the table
-    table = sprouts_parser.tables.get_table(-1)
-    print(table.to_string())
-
-    print("patterns:", sprouts_parser.get_patterns())
-    print("Overlap:", sprouts_parser.get_table(-1).overlap)
-    print("Total", sprouts_parser.get_table(-1).unique_values)
-
-    print([f"{item}" for item in table.rows_pattern])
-    print(table.columns_pattern)
+    table = sprouts_parser.get_table(-1)
+    print(table)
 
 
 if __name__ == "__main__":

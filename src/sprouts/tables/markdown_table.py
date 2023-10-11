@@ -1,4 +1,4 @@
-from sprouts.utils import flatten
+from sprouts.utils import unique_list, get_max_str_length
 from sprouts.regex import RegexSearch, RegexDict
 
 
@@ -42,23 +42,11 @@ class MarkdownTable:
 
     def _get_longest_value(self) -> int:
         """Return the largest length of all strings in `rows` and `headers`."""
-        try:
-            # Get the highest length value from headers
-            max_header_num = max(map(lambda x: len(str(x)), self.headers))
-        except ValueError as e:
-            # If there are no headers, set the value to 0
-            max_header_num = 0
+        # Get the highest length value from headers
+        max_header_num = get_max_str_length(self.headers)
 
-        try:
-            # Get the highest length value from rows
-            max_row_num = max(map(lambda x: len(str(x)),
-                                  [value for row in self.rows
-                                   for value in row]
-                                  )
-                              )
-        except ValueError as e:
-            # If there are no rows, set the value to 0
-            max_row_num = 0
+        # Get the highest length value from rows
+        max_row_num = get_max_str_length(self.rows)
 
         # Return the highest value
         return max(max_header_num, max_row_num)
@@ -280,14 +268,40 @@ class RegexTable(MarkdownTable):
             "overlap": RegexSearch.concat_patterns(
                 list(self.overlap[0])
             ),
-            "rows": [f"{RegexSearch.concat_patterns(flatten(row))}"
-                     for row in self.rows
-                     ],
-            "columns": [
-                f"{RegexSearch.concat_patterns(flatten(col))}"
-                for col in self.columns
-                ],
+            "rows": [],
+            "columns": [],
         }
+
+        # Sanitize rows and columns
+        sanitized_rows = []
+        sanitized_columns = []
+        for row in self.rows:
+            # Sanitize
+            sanitized_row = []
+            for item in unique_list(row):
+                if item in self.unique_values[0]:
+                    sanitized_row.append(item.strip())
+
+            if sanitized_row:
+                sanitized_rows.append(
+                    RegexSearch.concat_patterns(sanitized_row)
+                )
+
+        for col in self.columns:
+            sanitized_column = []
+            for item in col:
+                if item in self.unique_values[0]:
+                    sanitized_column.append(item.strip())
+
+            if sanitized_column:
+                sanitized_columns.append(
+                    RegexSearch.concat_patterns(sanitized_column)
+                )
+
+        # Add sanitized rows and columns to the patterns
+        patterns["rows"] = sanitized_rows
+
+        patterns["columns"] = sanitized_columns
 
         # Add the patterns to the collection
         self.patterns.add_patterns(patterns)
@@ -298,6 +312,13 @@ class RegexTable(MarkdownTable):
             "non-duplicates")
         self.unique_values_pattern = self.patterns.get_pattern("unique")
         self.overlap_pattern = self.patterns.get_pattern("overlap")
-        self.rows_pattern = self.patterns.get_pattern("rows")
-        self.columns_pattern = self.patterns.get_pattern("columns")
+        self.row_patterns = self.patterns.get_pattern("rows")
+        self.column_patterns = self.patterns.get_pattern("columns")
 
+    def get_pattern(self, pattern: str) -> str:
+        """Return the regex pattern for `pattern`."""
+        return self.patterns.get_pattern(pattern)
+
+    def get_patterns(self) -> dict[str, str]:
+        """Return the regex patterns."""
+        return self.patterns.to_dict()
