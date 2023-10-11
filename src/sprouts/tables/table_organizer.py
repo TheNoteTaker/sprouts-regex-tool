@@ -1,17 +1,81 @@
-import file
-from regex_file import RegexInput
-from markdown_table import TableOrganizer, RegexTable
-from typing import Sequence
-from data import DataParser
+from .markdown_table import RegexTable
+from typing import TypeVar, Sequence
+import sprouts.utils as utils
+
+T = TypeVar('T', str, str)
 
 
-class SproutsParser(DataParser):
+class TableOrganizer:
+
+    def __init__(self, *args, **kwargs):
+        self.tables = {}
+
+    def __str__(self):
+        """Return all markdown tables in `tables` in a string format."""
+        return "\n\n".join([str(table) for table in self.tables])
+
+    def __iter__(self):
+        """Return an iterator for `tables`."""
+        return iter(self.tables)
+
+    @staticmethod
+    def gen_table(rows: Sequence[T] | Sequence[Sequence[T]],
+                  headers: Sequence[T] | Sequence[Sequence[T]],
+                  ) -> RegexTable:
+        """Create and return a `RegexTable`."""
+        table = RegexTable()
+
+        # Add headers
+        for header in headers:
+            table.add_header(header)
+
+        # Add rows
+        for row in rows:
+            table.add_row(row)
+
+        # Add the table to `tables`
+        return table
+
+    def add_table(self, table: RegexTable) -> None:
+        """Add a `RegexTable` to `tables`."""
+        self.tables[len(self.tables)] = table
+
+    def list_tables(self, position: str = "center") -> None:
+        """Print all tables in `tables`."""
+        for table in self.tables:
+            print(table.to_string(position))
+
+    def pop_table(self, index: int = 0) -> RegexTable:
+        """Remove and return a table from `tables`."""
+        try:
+            return self.tables.pop(index)
+        except IndexError as e:
+            print(f"Error removing table: {e}")
+
+    def get_table(self, index: int = 0) -> RegexTable:
+        """Return a table from `tables`."""
+        try:
+            # If `index` is negative, return the last table
+            if index < 0:
+                index = len(self.tables) - 1
+
+            return self.tables[index]
+        except IndexError as e:
+            print(f"Error getting table: {e}")
+
+    def enum_tables(self) -> enumerate[RegexTable]:
+        """Return an enumerated list of tables."""
+        return enumerate(self.tables)
+
+    def total_tables(self) -> int:
+        """Return the total number of tables."""
+        return len(self.tables)
+
+
+class RegexTableOrganizer(TableOrganizer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.regex_file = RegexInput(kwargs.get("type") or "dict")
-        self.tables = TableOrganizer()
-        self._parser = DataParser()
         self.pad_char = "_"
         self.patterns = {
             "DOLLAR_AMOUNT": "^\\$(?!0.00)\\d+\\.\\d{2}$",
@@ -21,42 +85,21 @@ class SproutsParser(DataParser):
         }
 
     @staticmethod
-    def get_headers(data: list[str] | int, offset: int = 0) -> list[str]:
-        """Return the headers for the data."""
-        # Convert rows to monotonic segments
-        headers = []
-
-        header_count = (data if type(data) == int else len(data))
-
-        # Create the headers
-        for i in range(header_count - offset):
-            headers.append(f"Shipment {i + 1}")
-
-        return headers
-
-    def _create_table(self,
-                      rows: Sequence[str] | Sequence[Sequence[str]],
-                      headers: Sequence[str] | Sequence[Sequence[str]],
-                      ) -> None:
-        """Create a `RegexTable` and add it to `tables`."""
-        self.add_table(TableOrganizer.create_table(rows, headers))
-
-    def _segment(self,
-                 data: list[str],
-                 max_rows: int,
+    def _segment(data: list[str],
+                 max_rows: int = 0,
                  ignore: str = "|") -> list[list[str]]:
 
         try:
             # Attempt multiple segmentation methods and see which returns
             # The most accurate results
-            duplicates = self._parser.segment_duplicates(data, ignore)
-            separator = self._parser.segment_separator(data, ignore)
+            duplicates = utils.segment_duplicates(data, ignore)
+            separator = utils.segment_separator(data, ignore)
             # Get a padded list of stringify data for monotonic segmentation
-            data = self._parser.pad_list(self._parser.stringify(data),
-                                         pad="0",
-                                         justify="l",
-                                         remove=ignore)
-            monotonic = self._parser.segment_monotonic(data)
+            data = utils.pad_list(utils.stringify(data),
+                                  pad="0",
+                                  justify="l",
+                                  remove=ignore)
+            monotonic = utils.segment_monotonic(data)
 
         except ValueError as e:
             # If the data cannot be segmented, raise an error
@@ -83,9 +126,26 @@ class SproutsParser(DataParser):
                 # Return the segmented data in the most accurate order
                 return separator or monotonic or duplicates
 
-    def table(self, index: int) -> RegexTable:
-        """Return the table at `index`."""
-        return self.tables.get_table(index)
+    def _create_table(self,
+                      rows: Sequence[str] | Sequence[Sequence[str]],
+                      headers: Sequence[str] | Sequence[Sequence[str]],
+                      ) -> None:
+        """Create a `RegexTable` and add it to `tables`."""
+        self.add_table(self.gen_table(rows, headers))
+
+    @staticmethod
+    def get_headers(data: list[str] | int, offset: int = 0) -> list[str]:
+        """Return the headers for the data."""
+        # Convert rows to monotonic segments
+        headers = []
+
+        header_count = (data if type(data) == int else len(data))
+
+        # Create the headers
+        for i in range(header_count - offset):
+            headers.append(f"Shipment {i + 1}")
+
+        return headers
 
     def create_table(self,
                      rows: list[str] | tuple[str],
@@ -138,18 +198,18 @@ class SproutsParser(DataParser):
             return
 
         # Flatten `rows` if it is a list of lists
-        rows = self._parser.flatten(rows)
+        rows = utils.flatten(rows)
 
         # Remove leading zeros from `rows` (to sync with `total_values`)
-        rows = self._parser.remove_leading(rows, "0")
+        rows = utils.remove_leading(rows, "0")
 
         # Convert `rows` to a list of strings for proper segmentation
-        rows = self._parser.stringify(rows)
+        rows = utils.stringify(rows)
 
         # Get unique values, sorted and filtered, for Total Values column
-        total_values = self._parser.unique_list(rows,
-                                                sort=True,
-                                                remove=ignore)
+        total_values = utils.unique_list(rows,
+                                         sort=True,
+                                         remove=ignore)
 
         # Segment data for table rows
         if headers:
@@ -259,29 +319,19 @@ class SproutsParser(DataParser):
         headers.append("Total Values")
 
         # Pad final rows with `pad_char`
-        max_length = self._parser.get_max_str_length(total_values)
-        padded_rows = [self._parser.pad_list(row,
-                                             pad=self.pad_char,
-                                             max_length=max_length,
-                                             ignore=f"{scan_missing_label}"
-                                                    f"{missing_label}"
-                                                    f"{incorrect_label}"
-                                             )
-                       for row in final_rows]
+        max_length = utils.get_max_str_length(total_values)
+        # TODO: Implement padded rows
+        # padded_rows = [utils.pad_list(row,
+        #                               pad=self.pad_char,
+        #                               max_length=max_length,
+        #                               ignore=f"{scan_missing_label}"
+        #                                      f"{missing_label}"
+        #                                      f"{incorrect_label}"
+        #                               )
+        #                for row in final_rows]
 
         # Create the table
         self._create_table(final_rows, headers)
-
-    def add_table(self, table: RegexTable) -> None:
-        """Add a `RegexTable` to `tables`."""
-        self.tables.add_table(table)
-
-    def parse_data_monotonic(self, data: list[str]) -> list[list[str]]:
-        """Parses a `list` and returns headers and rows for the data."""
-        # Returns:
-        #   [0]: Monotonic segments
-        #   [1]: Headers
-        return [self.segment_monotonic(data), self.get_headers(data)]
 
     def get_patterns(self) -> str:
         """Return all regex patterns in all stored tables."""
@@ -290,71 +340,3 @@ class SproutsParser(DataParser):
             ret += table.patterns.to_string()
 
         return ret
-
-
-if __name__ == "__main__":
-    # Driver code
-    sprouts_parser = SproutsParser()
-
-    # Determine if config file exists
-
-    # Load patterns from config file if they exist
-
-    # Prompt user to use data file or input data
-    print("System will try to parse your data. Shipments should be separated "
-          "by a blank line if you select data file.\n")
-    print(f"1. Use data file")
-    print("2. Input data")
-    user_choice = file.input_(["1", "2"])
-
-    # If user chooses to use data file, load data from file
-    filename = file.exists("data.txt")
-    if user_choice == "1":
-        while not filename:
-            # Prompt user to enter a valid filename until one is entered or
-            # the user chooses to exit
-            print(f"File does not exist. Please enter valid "
-                  "filename (0 to exit):")
-
-            # Get user input for filename
-            filename = file.exists(input("Filename: "))
-
-            if filename in ["exit", "0", "e"]:
-                # User chooses to exit
-                print("Exiting...")
-                exit(0)
-
-        # Get row data from file
-        rows = file.read_file_lines(filename)
-    else:
-        # Prompt user to input data since they chose not to use a file
-        # Get total number of shipments
-        shipment_amount = int(file.input_("^[1-9][0-9]*$",
-                                          message="Enter Total Shipments: "))
-        rows = []
-        # for shipment in range(shipment_amount):
-        #     # Get data for each shipment
-        #     print(f"\nShipment {shipment + 1} "
-        #           f"(Type each vendor item on a new line):")
-        #     rows.append(file.read_input_lines())
-        #     # Separate shipments with a dashed line
-        #     rows.append("|")
-        rows = [["000001", "0324", "17842", "001", "3281"],
-                ["|"],
-                ["0002", "9243", "7131", "9942", "9999"],
-                ["|"],
-                ]
-
-    # Create a table
-    sprouts_parser.create_table(rows=rows[:-1], invoice_scan=0)
-
-    # Print the table
-    table = sprouts_parser.tables.get_table(-1)
-    print(table.to_string())
-
-    print("patterns:", sprouts_parser.get_patterns())
-    print("Overlap:", sprouts_parser.table(-1).overlap)
-    print("Total", sprouts_parser.table(-1).unique_values)
-
-    print([f"{item}" for item in table.rows_pattern])
-    print(table.columns_pattern)

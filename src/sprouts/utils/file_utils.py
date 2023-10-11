@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import string
 
 
 def read_file_string(filename: str) -> str:

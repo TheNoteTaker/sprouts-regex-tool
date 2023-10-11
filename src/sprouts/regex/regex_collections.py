@@ -1,10 +1,30 @@
-from typing import TypeVar, Sequence, List, Any
-from regex_pattern import RegexPattern
+from typing import Sequence, Any, TypeVar
 from abc import ABC, abstractmethod
-from data import DataParser
-import file
+from sprouts import utils
+import re
 
 T = TypeVar('T', str, str)
+
+
+class RegexPattern:
+
+    def __init__(self, pattern: str = ""):
+        self.pattern = ""
+        self.regex = None
+        self.set_pattern(pattern)
+
+    def __str__(self) -> str:
+        """Return the pattern string."""
+        return self.pattern
+
+    def __getattr__(self, item):
+        """Return `item` from the `re` module."""
+        return self.regex.__getattribute__(item)
+
+    def set_pattern(self, pattern: str) -> None:
+        """Set the pattern string and compile it for future use."""
+        self.pattern = pattern
+        self.regex = re.compile(self.pattern, re.M)
 
 
 class RegexCollection(ABC):
@@ -59,7 +79,7 @@ class RegexCollection(ABC):
 
     def load_from_input(self) -> None:
         """Load regex patterns from user input."""
-        self.add_patterns(*file.read_input_lines())
+        self.add_patterns(*utils.read_input_lines())
 
     def total_patterns(self) -> int:
         """Return the total number of regex patterns."""
@@ -71,7 +91,7 @@ class RegexCollection(ABC):
 
     def remove_duplicates(self) -> None:
         """Remove duplicate patterns from the collection."""
-        self.regex_patterns = DataParser.unique_list(self.regex_patterns)
+        self.regex_patterns = utils.unique_list(self.regex_patterns)
 
     def is_empty(self) -> bool:
         """Return True if the collection is empty, False otherwise."""
@@ -104,7 +124,7 @@ class RegexList(RegexCollection):
 
     def load_from_file(self, filename: str) -> None:
         """Load regex patterns from a file."""
-        self.add_patterns(*file.read_file_lines(filename))
+        self.add_patterns(*utils.read_file_lines(filename))
         print(f"Loaded patterns from {filename}")
 
     def add_patterns(self, *patterns: str) -> None:
@@ -195,7 +215,7 @@ class RegexDict(RegexCollection):
 
     def load_from_file(self, filename: str) -> None:
         """Load regex patterns from a file."""
-        self.regex_patterns = file.read_json(filename)
+        self.regex_patterns = utils.read_json(filename)
         print(f"Loaded patterns from {filename}")
 
     def remove_pattern(self, pattern: str) -> int:

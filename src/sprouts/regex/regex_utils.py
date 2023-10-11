@@ -1,7 +1,6 @@
-from regex_pattern_collections import RegexCollection
-from data import DataParser
+from sprouts.regex.regex_collections import RegexCollection
+from sprouts import utils
 import re
-import file
 
 
 class RegexSearch:
@@ -69,7 +68,7 @@ class RegexSearch:
         """Search a file for a regex pattern and return the matches."""
         return re.findall(
             pattern=rf"{pattern}",
-            string=file.read_file_string(filename),
+            string=utils.read_file_string(filename),
             flags=re.MULTILINE
         )
 
@@ -104,8 +103,8 @@ class RegexSearch:
                     `base_list`.
         """
         # Flatten lists
-        base_list = DataParser.flatten(base_list)
-        compare_lists = DataParser.flatten(compare_lists)
+        base_list = utils.flatten(base_list)
+        compare_lists = utils.flatten(compare_lists)
 
         # Concatenate all `base_list` patterns together and then remove anchors
         base_pattern = RegexSearch.concat_patterns(base_list)[1:-1]
