@@ -138,7 +138,22 @@ def input_(
 def exists(filename: str) -> str:
     """Return filename if the file exists, otherwise return ""."""
     # File extensions to iterate through incase user forgot the extension
-    extensions = [".txt", ".json", ".csv"]
+    # Sort by most used and opened (subjective)
+    extensions = [
+        ".txt", ".py", ".js", ".html", ".css",
+        ".json", ".md", ".csv", ".java", ".c",
+        ".cpp", ".h", ".hpp", ".sh", ".bash",
+        ".jpg", ".png", ".pdf", ".docx", ".xlsx",
+        ".pptx", ".php", ".go", ".rb", ".xml",
+        ".yml", ".yaml", ".toml", ".ini", ".cfg",
+        ".conf", ".rst", ".log", ".vbs", ".bat",
+        ".ps1", ".psm1", ".psd", ".zsh", ".fish",
+        ".ksh", ".csh", ".tcsh", ".awk", ".sed",
+        ".pl", ".pm", ".tcl", ".r", ".sql",
+        ".sqlite", ".db", ".db3", ".dbf", ".mdb",
+        ".accdb", ".sdf", ".ods", ".xls"
+    ]
+
     file = ""
     if os.path.exists(filename):
         # The file exists, so return the filename

@@ -1,6 +1,5 @@
 {
-  "DOLLAR_AMOUNT": "^\\$(?!0.00)\\d+\\.\\d{2}$",
-  "VENDOR_ITEM": "^\\d{4,5}?$",
-  "UNITS_RECEIVED": "^\\d+\\.0{2}$",
-  "RE_STRIPPER": "^\\^|\\$$"
+  "SETUP_ONE": "^(?P<item>\\d{4,5})(?!\\n(?P=item))\\n*(?P<rcv>\\d+)\\n*\\$(?P<dlr>(?!0.00)\\d+\\.\\d{2})$",
+  "SETUP_TWO": "^(?P<item>\\d{4,5})(?!\\n(?P=item))\\n*(?P<rcv>\\d+\\.0{2})$",
+  "SETUP_THREE": "^(?P<item>\\d{4,5}?)(?!\\n(?P=item))$"
 }

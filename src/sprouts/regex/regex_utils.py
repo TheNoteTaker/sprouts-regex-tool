@@ -117,7 +117,11 @@ class RegexSearch:
         base_pattern = RegexSearch.concat_patterns(base_list)[1:-1]
 
         # Return all items in `compare_lists` that exist in `base_list`
-        found_items = re.findall(base_pattern, " ".join(compare_lists), re.MULTILINE)
+        found_items = re.findall(
+            base_pattern,
+            " ".join(compare_lists),
+            re.MULTILINE
+        )
         missing_items = [item for item in compare_lists
                          if item not in found_items]
         return found_items, missing_items
