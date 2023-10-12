@@ -1,5 +1,5 @@
 {
-  "SETUP_ONE": "^(?P<item>\\d{4,5})(?!\\n(?P=item))\\n*(?P<rcv>\\d+)\\n*\\$(?P<dlr>(?!0.00)\\d+\\.\\d{2})$",
-  "SETUP_TWO": "^(?P<item>\\d{4,5})(?!\\n(?P=item))\\n*(?P<rcv>\\d+\\.0{2})$",
-  "SETUP_THREE": "^(?P<item>\\d{4,5}?)(?!\\n(?P=item))$"
+  "VDR_RCV_DOL": "^(?P<item>\\d{1,5})(?!\\n(?P=item))\\n*(?P<rcv>\\d+)\\n*\\$(?P<dlr>(?!0.00)\\d+\\.\\d{2})$",
+  "VDR_RCV": "^(?P<item>\\d{1,5})(?!\\n(?P=item))\\n*(?P<rcv>\\d+\\.0{2})$",
+  "VDR": "^(?P<item>\\d{1,5}?)(?!\\n(?P=item))$"
 }

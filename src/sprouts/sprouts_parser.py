@@ -1,8 +1,6 @@
-import re
-
-from sprouts.regex import RegexSearch
 from textwrap import fill
 import sprouts.utils as utils
+from sprouts.regex.regex_collections import RegexPattern
 
 
 class ShipmentManager:
@@ -95,76 +93,54 @@ class ShipmentManager:
 
 
 class ShipmentParser:
-    SETUP_ONE = re.compile(r'''
-        ^                                    # Beginning of line
-        (?P<item>\d{4,5})(?!\n(?P=item))\n*  # Match vendor item
-        (?P<rcv>\d+)\n*                      # Match units received
-        \$(?P<dlr>(?!0.00)\d+\.\d{2})        # Match dollar amount
-        $                                    # End of line
-        ''', re.VERBOSE | re.MULTILINE)
-    SETUP_TWO = re.compile(r'''
-        ^                                    # Beginning of line
-        (?P<item>\d{4,5})(?!\n(?P=item))\n*  # Match vendor item
-        (?P<rcv>\d+\.0{2})                   # Match units received
-        $                                    # End of line
-        ''', re.VERBOSE | re.MULTILINE)
-    SETUP_THREE = re.compile(r'''
-        ^                                    # Beginning of line
-        (?P<item>\d{4,5}?)(?!\n(?P=item))    # Match vendor item
-        $                                    # End of line
-    ''', re.VERBOSE | re.MULTILINE)
 
-    def __init__(self) -> None:
-        self.patterns = utils.read_json("data/patterns.json")
-        pass
+    def __init__(self, filename: str = "data/patterns.json") -> None:
+        self.patterns = {}
+        if not utils.exists(filename):
+            raise FileNotFoundError(f"File '{filename}' not found.")
+        else:
+            self._load_patterns(utils.read_json(filename))
 
-    def __str__(self) -> str:
-        pass
+    def _load_patterns(self, patterns: dict) -> None:
+        """Load regex patterns from a `dict`."""
+        self.patterns = {k: RegexPattern(v) for k, v in patterns.items()}
 
-    def _parse_data(self, data: str | list[str]) -> tuple[list, list, list]:
+    def parse_list(self, data: str | list[str]
+                   ) -> list[list[RegexPattern] | RegexPattern]:
         """
         Parses `data` by class regex patterns.
 
-        Uses the class regex patterns to parse `data` and return a
-        `list` containing a `list` per regex pattern of all found
-        matches in `data`.
+        Uses the regex patterns in `patterns` to parse `data`.
+        The Patterns are ranked by priority in a top-down fashion,
+        so the first pattern to match will be used.
 
         Args:
             data: The data to parse.
 
         Returns:
-
+            A `l
         """
         ret = []
         # Convert `data` to a string if it is a list
         if isinstance(data, list):
             data = "\n".join(utils.flatten(data))
 
-        # setup_one = Vendor item + units received + dollar amount
-        setup_one = ShipmentParser.SETUP_ONE.findall(data)
-        # setup_two = Vendor item + units received
-        setup_two = ShipmentParser.SETUP_TWO.findall(data)
-        # setup_three = Vendor item
-        setup_three = ShipmentParser.SETUP_THREE.findall(data)
-
-        return setup_one, setup_two, setup_three
-
-    def parse_shipment(self, shipment: str | list[str]) -> list:
-        # setup_one = Vendor item + units received + dollar amount
-        # setup_two = Vendor item + units received
-        # setup_three = Vendor item
-        setup_one, setup_two, setup_three = self._parse_data(shipment)
-
-        return setup_one if setup_one \
-            else setup_two if setup_two \
-            else setup_three if setup_three \
-            else []
+        for pattern in self.patterns.values():
+            # Find all matches for the pattern in the data
+            matches = pattern.findall(data)
+            if matches:
+                # Add the matches to the list of matches
+                return matches
 
 
 if __name__ == "__main__":
     # driver = ShipmentManager()
     # driver.shipments_menu()
     # print(driver.get_shipments())
-    data = utils.read_file_lines("data/sample_data_02.txt")
+    shipment_one = utils.read_file_lines("data/sample_data_01.txt")
+    shipment_two = utils.read_file_lines("data/sample_data_02.txt")
+    shipment_three = utils.read_file_lines("data/sample_data_03.txt")
     driver = ShipmentParser()
-    print(driver.parse_shipment(data))
+    print(driver.parse_list(shipment_one))
+    print(driver.parse_list(shipment_two))
+    print(driver.parse_list(shipment_three))
