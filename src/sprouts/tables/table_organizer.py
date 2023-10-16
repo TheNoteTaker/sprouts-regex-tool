@@ -40,9 +40,23 @@ class TableOrganizer:
         """Add a `RegexTable` to `tables`."""
         self.tables[len(self.tables)] = table
 
-    def list_tables(self, position: str = "center") -> None:
+    def print_tables(self, position: str = "center") -> None:
         """Print all tables in `tables`."""
-        for table in self.tables:
+        for index, table in self.tables.items():
+            print(f"====================TABLE {index + 1}====================")
+            print(table.to_string(position))
+
+    def print_table(self, index: int = -1, position: str = "center") -> None:
+        """Print a table from `tables`. Gets last table by default."""
+        table = self.get_table(index)
+        if table:
+            # Number to print as part of table header
+            if index < 0:
+                table_count = len(self.tables)
+            else:
+                table_count = index + 1
+
+            print(f"====================TABLE {table_count}====================")
             print(table.to_string(position))
 
     def pop_table(self, index: int = 0) -> RegexTable:
@@ -52,16 +66,20 @@ class TableOrganizer:
         except IndexError as e:
             print(f"Error removing table: {e}")
 
-    def get_table(self, index: int = 0) -> RegexTable:
-        """Return a table from `tables`."""
+    def get_table(self, index: int = -1) -> RegexTable | int:
+        """Return a table from `tables`. Gets last table by default."""
         try:
             # If `index` is negative, return the last table
-            if index < 0:
+            if index < 0 or index >= len(self.tables):
                 index = len(self.tables) - 1
 
             return self.tables[index]
         except IndexError as e:
-            print(f"Error getting table: {e}")
+            # If `index` is out of range, return the last table
+            return self.tables[len(self.tables) - 1]
+        except KeyError as e:
+            # If `index` is not in `tables`, return 0
+            return 0
 
     def enum_tables(self) -> enumerate[RegexTable]:
         """Return an enumerated list of tables."""
@@ -120,13 +138,6 @@ class TableSegmentor(TableOrganizer):
                 # Return the segmented data in the most accurate order
                 return separator or monotonic or duplicates
 
-    def _create_table(self,
-                      rows: Sequence[str] | Sequence[Sequence[str]],
-                      headers: Sequence[str] | Sequence[Sequence[str]],
-                      ) -> None:
-        """Create a `RegexTable` and add it to `tables`."""
-        self.add_table(self.gen_table(rows, headers))
-
     @staticmethod
     def get_headers(data: list[str] | int, offset: int = 0) -> list[str]:
         """Return the headers for the data."""
@@ -140,6 +151,13 @@ class TableSegmentor(TableOrganizer):
             headers.append(f"Shipment {i + 1}")
 
         return headers
+    
+    def _create_table(self,
+                      rows: Sequence[str] | Sequence[Sequence[str]],
+                      headers: Sequence[str] | Sequence[Sequence[str]],
+                      ) -> None:
+        """Create a `RegexTable` and add it to `tables`."""
+        self.add_table(self.gen_table(rows, headers))
 
     def create_table(self,
                      rows: list[str] | tuple[str],
@@ -186,9 +204,10 @@ class TableSegmentor(TableOrganizer):
         """
         final_rows = []
 
-        if not rows:
-            # `rows` is empty
-            print("No rows provided")
+        # Check for any invalid values
+        if not all(rows):
+            print("ERROR: A shipment is empty! Table not created.")
+            print()
             return
 
         # Flatten `rows` if it is a list of lists
@@ -314,7 +333,6 @@ class TableSegmentor(TableOrganizer):
 
         # Pad final rows with `pad_char`
         max_length = utils.get_max_str_length(total_values)
-        # TODO: Implement padded rows
         # padded_rows = [utils.pad_list(row,
         #                               pad=self.pad_char,
         #                               max_length=max_length,

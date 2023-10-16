@@ -68,25 +68,25 @@ def input_(
         if isinstance(valid_input, list):
             # List of valid input was provided and not a regex pattern
             # Convert all items in the list to lowercase
-            valid_input = [item.casefold() for item in valid_input]
+            valid_input = [str(item).casefold() for item in valid_input]
     elif invalid_input:
         if isinstance(invalid_input, list):
             # List of invalid input was provided and not a regex pattern
             # Convert all items in the list to lowercase
-            invalid_input = [item.casefold() for item in invalid_input]
-    elif not valid_input or not invalid_input:
-        # Neither valid nor invalid input was provided
-        raise ValueError("Either `valid_input` or `invalid_input` must be" \
-                         "used.")
-    else:
+            invalid_input = [str(item).casefold() for item in invalid_input]
+    elif valid_input and invalid_input:
         # Both valid and invalid input was provided
         raise ValueError(
             "Only `valid_input` or `invalid_input` can be used, " \
             "not both."
         )
+    else:
+        # Neither valid nor invalid input was provided
+        raise ValueError("Either `valid_input` or `invalid_input` must be" \
+                         "used.")
 
     while True:
-        # Read input from the user and check that is either in the
+        # Read input from the user and check that it is either in the
         # list or matches the regex pattern
         user_input = input(f"{message} ")
         invalid_message = "Invalid input, please try again."

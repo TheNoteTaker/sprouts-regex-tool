@@ -1,1 +1,1 @@
-from .sprouts_parser import ShipmentManager, ShipmentParser
+from .sprouts_parser import ShipmentList, ShipmentParser
