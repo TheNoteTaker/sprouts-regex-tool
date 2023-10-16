@@ -53,8 +53,6 @@ def main():
                 print("Invalid option selected!")
                 print()
 
-    print("====================DRIVER====================")
-
 
 if __name__ == "__main__":
     main()
