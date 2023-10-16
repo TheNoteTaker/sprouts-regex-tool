@@ -2,9 +2,20 @@ from .. import utils
 from ..regex import RegexPattern
 
 MODULE_DIR = utils.get_module_dir(__file__)
-REGEX_PATTERNS_PATH = utils.join(
+# Get filepath of patterns.json file
+path = utils.join(
     utils.get_parent_dir(MODULE_DIR) + "/data/patterns.json"
 )
+# Verify the filepath is valid
+if not utils.exists(path):
+    print(f"This program requires the `patterns.json` file. This file is missing.\nExpected filepath: {path}")
+    while True:
+        path = input("Please enter the path to the `patterns.json` file:\n>")
+        if not utils.exists(path):
+            print("File was not found...")
+        else:
+            break
+REGEX_PATTERNS_PATH = path
 
 
 class ShipmentParser:
