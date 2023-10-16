@@ -1,10 +1,16 @@
-from sprouts.regex.regex_collections import RegexCollection
-from sprouts import utils
+from .regex_collections import RegexCollection
+from .. import utils
 import re
 
 
 class RegexSearch:
     def __init__(self):
+        """
+        This method is empty because there is no initialization logic
+        required for this class. The class is simply a wrapper around
+        the `re` module, so all of the initialization logic is handled
+        by the `re` module itself.
+        """
         pass
 
     def __getattr__(self, item):

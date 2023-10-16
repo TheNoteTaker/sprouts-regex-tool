@@ -1,5 +1,5 @@
-from sprouts.utils import unique_list, get_max_str_length
-from sprouts.regex import RegexSearch, RegexDict
+from ..utils import unique_list, get_max_str_length
+from ..regex import RegexSearch, RegexDict
 
 
 class MarkdownTable:

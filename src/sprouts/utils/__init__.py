@@ -1,12 +1,15 @@
-from sprouts.utils.file_utils import (
+from .file_utils import (
     read_file_lines,
     read_file_string,
     read_input_lines,
     read_json,
     input_,
-    exists
+    exists,
+    get_module_dir,
+    get_parent_dir,
+    join,
 )
-from sprouts.utils.data_utils import (
+from .data_utils import (
     segment_separator,
     segment_duplicates,
     segment_monotonic,

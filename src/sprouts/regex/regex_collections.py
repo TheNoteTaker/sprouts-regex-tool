@@ -1,6 +1,6 @@
 from typing import Sequence, Any, TypeVar
 from abc import ABC, abstractmethod
-from sprouts import utils
+from .. import utils
 import re
 
 T = TypeVar('T', str, str)

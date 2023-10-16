@@ -1,6 +1,6 @@
 from .markdown_table import RegexTable
 from typing import TypeVar, Sequence
-import sprouts.utils as utils
+from  .. import utils
 
 T = TypeVar('T', str, str)
 

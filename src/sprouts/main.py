@@ -1,6 +1,5 @@
-from sprouts.tables import TableSegmentor
-from sprouts.sprouts_parser import ShipmentManager
-import re
+from .tables import TableSegmentor
+from .sprouts_session.sprouts_parser import ShipmentManager, ShipmentParser
 
 
 def main():
@@ -10,11 +9,22 @@ def main():
             ["0002", "9243", "7131", "9942", "9999"],
             ]
 
-
+    # Initialize objects
     table_segmentor = TableSegmentor()
     shipments = ShipmentManager()
-    shipments.add_shipments(test_data)
+    parser = ShipmentParser()
+
+    # Add and parse shipments
+    rows = []
+    shipments.shipments_menu()
+    for shipment in shipments:
+        pass
+
+
+    # Print shipments
     print("Shipments:", shipments.get_shipments())
+
+
 
     # Create a table
     table_segmentor.create_table(rows=shipments.get_shipments(), invoice_scan=1)
