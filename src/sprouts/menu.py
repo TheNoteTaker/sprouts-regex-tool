@@ -134,7 +134,6 @@ class InteractiveMenu:
 
     def table_menu(self, tables: list[RegexTable]) -> (int, int):
         if not tables:
-            print("No tables exist yet!")
             return 0
 
         # Display options
@@ -155,6 +154,7 @@ class InteractiveMenu:
             message="Enter your choice:",
             valid_input=[key + 1 for key in tables.keys()],
         )
+        print()  # Newline separator
 
         return int(choice) - 1
 
@@ -163,11 +163,77 @@ class InteractiveMenu:
             message="Use grid tables? [y/N]: ",
             valid_input=["y", "n", "yes", "no", "", "1", "2"],
         )
+        print() # Newline separator
 
         if grid.casefold() in ["y", "yes", "1"] or grid is None:
             return 1
         else:
             return 0
+
+    def edit_menu(
+        self, table: RegexTable, exit_strings: list[str] = ["exit", ""]
+    ) -> list[int]:
+        print("\n==========Edit Menu==========")
+        row_index = utils.input_(
+            message="1. Select row to edit (left/right numbers):",
+            valid_input=[str(i) for i in range(table.num_rows)] + exit_strings,
+        )
+        # Check if user wants to exit
+        if self._check_exit_condition(row_index, exit_strings):
+            return []
+
+        # Get column number to edit
+        column_index = utils.input_(
+            message="2. Select column to edit (top/bottom numbers):",
+            valid_input=[str(i) for i in range(table.num_columns)]
+            + exit_strings,
+        )
+        # Check if user wants to exit
+        if self._check_exit_condition(column_index, exit_strings):
+            return []
+
+        # Convert to int
+        try:
+            row_index = int(row_index)
+            column_index = int(column_index)
+        except ValueError:
+            print(f"ERROR: Invalid input!: {column_index}")
+            return []
+
+        # Adjust row index for headers
+        if row_index > 0:
+            row_index -= 1
+            is_header = False
+        else:
+            is_header = True
+
+        # Set valid input based on if the selected cell is a header
+        if is_header:
+            valid_input = "^(?:[\d\w]+|exit|)$"
+        else:
+            valid_input = "^(?:\d+|exit|)$"
+            
+        # Get replacement value
+        replace = utils.input_(
+            message="3. Replace cell with:",
+            # First pattern is for rows, second is
+            # for headers
+            valid_input=valid_input,
+        )
+        # Check if user wants to exit
+        if self._check_exit_condition(replace, exit_strings):
+            return []
+
+        return [row_index, column_index, replace]
+
+    def _check_exit_condition(
+        self, user_input: str, exit_strings: list[str]
+    ) -> bool:
+        for exit_string in exit_strings:
+            if user_input == exit_string:
+                return True
+
+        return False
 
     def main_menu(self) -> int:
         # Create options
@@ -188,5 +254,6 @@ class InteractiveMenu:
         choice = utils.input_(
             message="Enter your choice:", valid_input=valid_input
         )
+        print()  # Newline separator
 
         return choice

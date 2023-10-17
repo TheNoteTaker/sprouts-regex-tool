@@ -1,12 +1,11 @@
 from .markdown_table import RegexTable
 from typing import TypeVar, Sequence
-from  .. import utils
+from .. import utils
 
-T = TypeVar('T', str, str)
+T = TypeVar("T", str, str)
 
 
 class TableOrganizer:
-
     def __init__(self, *args, **kwargs):
         self.tables = {}
 
@@ -19,9 +18,10 @@ class TableOrganizer:
         return iter(self.tables)
 
     @staticmethod
-    def gen_table(rows: Sequence[T] | Sequence[Sequence[T]],
-                  headers: Sequence[T] | Sequence[Sequence[T]],
-                  ) -> RegexTable:
+    def gen_table(
+        rows: Sequence[T] | Sequence[Sequence[T]],
+        headers: Sequence[T] | Sequence[Sequence[T]],
+    ) -> RegexTable:
         """Create and return a `RegexTable`."""
         table = RegexTable()
 
@@ -36,23 +36,41 @@ class TableOrganizer:
         # Add the table to `tables`
         return table
 
+    def _get_header_title(self, index: int, grid: bool = False) -> str:
+        total = 0
+        table = self.get_table(index)
+        if table:
+            for string in table.headers:
+                total += len(string)
+
+            # Extra length comes from "TABLE ", index length, and padding
+            extra_length = 8 + len(str(index))
+            padding = (total - extra_length) * 2 + 1
+
+            if grid:
+                title_separator = f'  {f"TABLE {index}":=^{padding}}'
+            else:
+                title_separator = f'{f"TABLE {index}":=^{padding}}'
+
+            # Create the title separator in the form of ======TABLE 1======
+            # title_separator = "=" * (total * table.num_columns - extra_length)
+            return title_separator
+
     def add_table(self, table: RegexTable) -> None:
         """Add a `RegexTable` to `tables`."""
         self.tables[len(self.tables)] = table
 
-    def print_tables(self, 
-                     position: str = "center",
-                     grid: bool = False
-                     ) -> None:
+    def print_tables(
+        self, position: str = "center", grid: bool = False
+    ) -> None:
         """Print all tables in `tables`."""
         for index, table in self.tables.items():
-            print(f"====================TABLE {index + 1}====================")
+            print(self._get_header_title(index + 1, grid))
             print(table.to_string(position, grid))
 
-    def print_table(self, index: int = -1, 
-                    position: str = "center",
-                    grid: bool = False
-                    ) -> None:
+    def print_table(
+        self, index: int = -1, position: str = "center", grid: bool = False
+    ) -> None:
         """Print a table from `tables`. Gets last table by default."""
         table = self.get_table(index)
         if table:
@@ -62,8 +80,9 @@ class TableOrganizer:
             else:
                 table_count = index + 1
 
-            print(f"====================TABLE {table_count}====================")
+            print(self._get_header_title(table_count, grid))
             print(table.to_string(position, grid))
+            print()
 
     def pop_table(self, index: int = 0) -> RegexTable:
         """Remove and return a table from `tables`."""
@@ -87,14 +106,14 @@ class TableOrganizer:
         except (KeyError, TypeError, ValueError) as e:
             # If `index` is not in `tables`, return 0
             return 0
-        
+
     def edit_table(
-            self, 
-            row: int,
-            column: int,
-            replace: str,
-            index: int = -1,
-                   ) -> None:
+        self,
+        row: int,
+        column: int,
+        replace: str,
+        index: int = -1,
+    ) -> None:
         """Edit a table from `tables`. Gets last table by default."""
         table = self.get_table(index)
         if table:
@@ -110,34 +129,30 @@ class TableOrganizer:
 
 
 class TableSegmentor(TableOrganizer):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pad_char = "_"
 
     @staticmethod
-    def _segment(data: list[str],
-                 max_rows: int = 0,
-                 ignore: str = "|") -> list[list[str]]:
-
+    def _segment(
+        data: list[str], max_rows: int = 0, ignore: str = "|"
+    ) -> list[list[str]]:
         try:
             # Attempt multiple segmentation methods and see which returns
             # The most accurate results
             duplicates = utils.segment_duplicates(data, ignore)
             separator = utils.segment_separator(data, ignore)
             # Get a padded list of stringify data for monotonic segmentation
-            data = utils.pad_list(utils.stringify(data),
-                                  pad="0",
-                                  justify="l",
-                                  remove=ignore)
+            data = utils.pad_list(
+                utils.stringify(data), pad="0", justify="l", remove=ignore
+            )
             monotonic = utils.segment_monotonic(data)
 
         except ValueError as e:
             # If the data cannot be segmented, raise an error
             # Likely to be caused by an invalid `pad_char` value because
             # arithmetic is performed on the data.
-            raise ValueError(f"Error segmenting data: {e}\n"
-                             f"value: {data}\n")
+            raise ValueError(f"Error segmenting data: {e}\n" f"value: {data}\n")
         else:
             if max_rows:
                 # Return the segmented data in the most accurate order
@@ -150,9 +165,11 @@ class TableSegmentor(TableOrganizer):
                 else:
                     # No segmentation methods returned the
                     # correct number of rows
-                    raise ValueError(f"Error segmenting data: No segmentation"
-                                     f"methods returned the correct number of"
-                                     f"rows.\nvalue: {data}")
+                    raise ValueError(
+                        f"Error segmenting data: No segmentation"
+                        f"methods returned the correct number of"
+                        f"rows.\nvalue: {data}"
+                    )
             else:
                 # Return the segmented data in the most accurate order
                 return separator or monotonic or duplicates
@@ -163,30 +180,32 @@ class TableSegmentor(TableOrganizer):
         # Convert rows to monotonic segments
         headers = []
 
-        header_count = (data if type(data) == int else len(data))
+        header_count = data if type(data) == int else len(data)
 
         # Create the headers
         for i in range(header_count - offset):
             headers.append(f"Shipment {i + 1}")
 
         return headers
-    
-    def _create_table(self,
-                      rows: Sequence[str] | Sequence[Sequence[str]],
-                      headers: Sequence[str] | Sequence[Sequence[str]],
-                      ) -> None:
+
+    def _create_table(
+        self,
+        rows: Sequence[str] | Sequence[Sequence[str]],
+        headers: Sequence[str] | Sequence[Sequence[str]],
+    ) -> None:
         """Create a `RegexTable` and add it to `tables`."""
         self.add_table(self.gen_table(rows, headers))
 
-    def create_table(self,
-                     rows: list[str] | tuple[str],
-                     headers: list[str] | tuple[str] = None,
-                     invoice_scan: int = 1,
-                     ignore: str = "|",
-                     missing_label: str = "----",
-                     scan_missing_label: str = "////",
-                     incorrect_label: str = "!!!!",
-                     ) -> None:
+    def create_table(
+        self,
+        rows: list[str] | tuple[str],
+        headers: list[str] | tuple[str] = None,
+        invoice_scan: int = 1,
+        ignore: str = "|",
+        missing_label: str = "----",
+        scan_missing_label: str = "////",
+        incorrect_label: str = "!!!!",
+    ) -> None:
         """
         Create a `RegexTable` and add it to `tables`.
 
@@ -239,9 +258,7 @@ class TableSegmentor(TableOrganizer):
         rows = utils.stringify(rows)
 
         # Get unique values, sorted and filtered, for Total Values column
-        total_values = utils.unique_list(rows,
-                                         sort=True,
-                                         remove=ignore)
+        total_values = utils.unique_list(rows, sort=True, remove=ignore)
 
         # Segment data for table rows
         if headers:
@@ -283,15 +300,15 @@ class TableSegmentor(TableOrganizer):
             # ==========Check if the value is in both scan and row==========
             if invoice_scan:
                 # Check if `value` is in any scan list at all
-                in_scan = value in [item for sublist in scan_column_rows
-                                    for item in sublist]
+                in_scan = value in [
+                    item for sublist in scan_column_rows for item in sublist
+                ]
             else:
                 # If not using invoice scan, don't use scan column labeling
                 in_scan = True
 
             # Check if `value` is in any non-scan list at all
-            in_rows = value in [item for sublist in rows
-                                for item in sublist]
+            in_rows = value in [item for sublist in rows for item in sublist]
 
             # Iterate through scan column rows to create
             # "----", "////", and "!!!!" cells
@@ -344,8 +361,9 @@ class TableSegmentor(TableOrganizer):
                 headers.append(f"Scan {i + 1}")
 
             # Update the headers for the non-scan columns
-            headers.extend(self.get_headers(len(final_rows[0]) - 1,
-                                            offset=invoice_scan))
+            headers.extend(
+                self.get_headers(len(final_rows[0]) - 1, offset=invoice_scan)
+            )
 
         # Insert the "Total Values" column at the end of the headers
         headers.append("Total Values")
