@@ -42,8 +42,7 @@ def segment_monotonic(lines: list[str]) -> list[list[str]]:
     return segmented_lines
 
 
-def segment_duplicates(lines: list[str],
-                       ignore: str = "|") -> list[list[str]]:
+def segment_duplicates(lines: list[str], ignore: str = "|") -> list[list[str]]:
     """
     Segment a `list` of strings based on duplicates.
 
@@ -107,13 +106,14 @@ def segment_separator(data: list[str], sep: str = "|") -> list[list[str]]:
     return segments
 
 
-def pad_list(data: list,
-             pad: str = "0",
-             justify: str = "l",
-             max_length: int = 0,
-             remove: str = "",
-             ignore: str = ""
-             ) -> list:
+def pad_list(
+    data: list,
+    pad: str = "0",
+    justify: str = "l",
+    max_length: int = 0,
+    remove: str = "",
+    ignore: str = "",
+) -> list:
     """
     Pad a `list` of strings with a specified character.
 
@@ -148,8 +148,9 @@ def pad_list(data: list,
 
     # Get max length of the list
     data = stringify(data)
-    max_length = (max([len(item) for item in data])
-                  if not max_length else max_length)
+    max_length = (
+        max([len(item) for item in data]) if not max_length else max_length
+    )
 
     # Set justify char
     if justify in ["l", "left"]:
@@ -262,10 +263,7 @@ def flatten(data: any, level: int = -1) -> list:
     return data
 
 
-def unique_list(data: list,
-                sort: bool = True,
-                remove: str = ""
-                ) -> list:
+def unique_list(data: list, sort: bool = True, remove: str = "") -> list[str]:
     """
     Return a list of unique items from the provided list.
 
@@ -284,12 +282,20 @@ def unique_list(data: list,
         A `list` of unique items from the provided list, optionally
         sorted and filtered.
     """
+    # Convert all data to strings to avoid comparison errors
     for char in remove:
         # Remove items from the `remove` list
         data = [item for item in data if item != char and item is not None]
 
-    # Remove duplicates and sort if `sort` is True
-    return sorted(set(data)) if sort else list(set(data))
+    try:
+        # Remove duplicates and sort if `sort` is True
+        return sorted(set(data)) if sort else list(set(data))
+    except TypeError:
+        # Multiple data types were found in the list, so convert to
+        # strings and try again
+        return (
+            sorted(set(stringify(data))) if sort else list(set(stringify(data)))
+        )
 
 
 def get_max_str_length(data: any) -> int:

@@ -5,7 +5,7 @@ from .file_utils import (
     read_json,
     input_,
     exists,
-    get_module_dir,
+    get_file_dir,
     get_parent_dir,
     join,
 )

@@ -77,13 +77,13 @@ def input_(
     elif valid_input and invalid_input:
         # Both valid and invalid input was provided
         raise ValueError(
-            "Only `valid_input` or `invalid_input` can be used, " \
-            "not both."
+            "Only `valid_input` or `invalid_input` can be used, " "not both."
         )
     else:
         # Neither valid nor invalid input was provided
-        raise ValueError("Either `valid_input` or `invalid_input` must be" \
-                         "used.")
+        raise ValueError(
+            "Either `valid_input` or `invalid_input` must be" "used."
+        )
 
     while True:
         # Read input from the user and check that it is either in the
@@ -216,9 +216,9 @@ def exists(filename: str) -> str:
     return file
 
 
-def get_module_dir(filepath: str) -> str:
+def get_file_dir(filepath: str) -> str:
     """
-    Get the directory of a module.
+    Get the directory of a filepath.
 
     Args:
         filepath (str): The path to the module.
@@ -235,7 +235,7 @@ def get_parent_dir(filepath: str, times: int = 1) -> str:
 
     Args:
         filepath (str): The path to the file.
-        times (int, Optional): The number of times to traverse up the 
+        times (int, Optional): The number of times to traverse up the
             directory tree.
 
     Returns:

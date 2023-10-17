@@ -132,9 +132,52 @@ class InteractiveMenu:
 
         return [shipments, shipment_amount, scan_column_amount]
 
+    def table_menu(self, tables: list[RegexTable]) -> (int, int):
+        if not tables:
+            print("No tables exist yet!")
+            return 0
+
+        # Display options
+        print("Please select one of the following tables:")
+        for i, table in tables.items():
+            print(
+                f"Table {i+1} - "
+                f"Total: {table.unique_values[1]} | "
+                f"Rows: {len(table.rows)} | "
+                f"Columns: {table.num_columns} | "
+                f"Duplicates: {table.duplicates[1]} | "
+                f"Non-Duplicates: {table.non_duplicates[1]} | "
+                f"Overlap: {table.overlap[1]} | "
+            )
+
+        # Get user table choice
+        choice = utils.input_(
+            message="Enter your choice:",
+            valid_input=[key + 1 for key in tables.keys()],
+        )
+
+        return int(choice) - 1
+
+    def grid_table_input(self) -> int:
+        grid = utils.input_(
+            message="Use grid tables? [y/N]: ",
+            valid_input=["y", "n", "yes", "no", "", "1", "2"],
+        )
+
+        if grid.casefold() in ["y", "yes", "1"] or grid is None:
+            return 1
+        else:
+            return 0
+
     def main_menu(self) -> int:
         # Create options
-        options = ["create table", "select a table", "print all tables"]
+        options = [
+            "create table",
+            "select a table",
+            "print all tables",
+            "edit a table",
+            "get regex patterns",
+        ]
         valid_input = f"^[1-{len(options)}]$"
 
         # Display options
@@ -147,25 +190,3 @@ class InteractiveMenu:
         )
 
         return choice
-
-    def table_menu(self, tables: list[RegexTable]) -> int:
-        if not tables:
-            print("No tables exist yet!")
-            return 0
-
-        # Display options
-        print("Please select one of the following tables:")
-        for i, table in tables.items():
-            print(
-                f"{i+1} - Headers: {table.num_columns} | "
-                f"Rows: {len(table.rows)} |"
-                f"Header Names: {', '.join(table.headers)}"
-            )
-
-        # Get user input
-        choice = utils.input_(
-            message="Enter your choice:",
-            valid_input=[key + 1 for key in tables.keys()],
-        )
-
-        return int(choice) - 1

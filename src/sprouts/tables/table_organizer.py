@@ -40,13 +40,19 @@ class TableOrganizer:
         """Add a `RegexTable` to `tables`."""
         self.tables[len(self.tables)] = table
 
-    def print_tables(self, position: str = "center") -> None:
+    def print_tables(self, 
+                     position: str = "center",
+                     grid: bool = False
+                     ) -> None:
         """Print all tables in `tables`."""
         for index, table in self.tables.items():
             print(f"====================TABLE {index + 1}====================")
-            print(table.to_string(position))
+            print(table.to_string(position, grid))
 
-    def print_table(self, index: int = -1, position: str = "center") -> None:
+    def print_table(self, index: int = -1, 
+                    position: str = "center",
+                    grid: bool = False
+                    ) -> None:
         """Print a table from `tables`. Gets last table by default."""
         table = self.get_table(index)
         if table:
@@ -57,7 +63,7 @@ class TableOrganizer:
                 table_count = index + 1
 
             print(f"====================TABLE {table_count}====================")
-            print(table.to_string(position))
+            print(table.to_string(position, grid))
 
     def pop_table(self, index: int = 0) -> RegexTable:
         """Remove and return a table from `tables`."""
@@ -69,6 +75,7 @@ class TableOrganizer:
     def get_table(self, index: int = -1) -> RegexTable | int:
         """Return a table from `tables`. Gets last table by default."""
         try:
+            index = int(index)
             # If `index` is negative, return the last table
             if index < 0 or index >= len(self.tables):
                 index = len(self.tables) - 1
@@ -77,9 +84,21 @@ class TableOrganizer:
         except IndexError as e:
             # If `index` is out of range, return the last table
             return self.tables[len(self.tables) - 1]
-        except KeyError as e:
+        except (KeyError, TypeError, ValueError) as e:
             # If `index` is not in `tables`, return 0
             return 0
+        
+    def edit_table(
+            self, 
+            row: int,
+            column: int,
+            replace: str,
+            index: int = -1,
+                   ) -> None:
+        """Edit a table from `tables`. Gets last table by default."""
+        table = self.get_table(index)
+        if table:
+            table.edit(row, column, replace)
 
     def enum_tables(self) -> enumerate[RegexTable]:
         """Return an enumerated list of tables."""

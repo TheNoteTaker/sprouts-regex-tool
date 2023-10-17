@@ -1,14 +1,14 @@
-from ..utils import unique_list, get_max_str_length
+from ..utils import unique_list, get_max_str_length, flatten
 from ..regex import RegexSearch, RegexDict
 
 
 class MarkdownTable:
-
     def __init__(self):
         self.headers = []
         self.rows = []
         self.columns = []
         self.num_columns = 0
+        self.num_rows = 0
         self._max_str_length = 0
         self.duplicates = [{}, 0]
         self.non_duplicates = [[], 0]
@@ -21,24 +21,136 @@ class MarkdownTable:
         """Return the Markdown table."""
         return self.to_string("center")
 
-    def _get_table_separator(self, position: str = "center") -> str:
-        """Returned a positioned table separator."""
+    def _get_table_separator(
+        self, position: str = "center", grid: bool = False
+    ) -> str:
+        """
+        Returns a positioned table separator.
+
+        Args:
+        - position (str): The position of the separator.
+            Can be "center", "left", "right", or "xcenter".
+        - grid (bool): Whether to use a grid separator or not.
+
+        Returns:
+        - str: The table separator string.
+        """
         position = position.casefold()
+        start = "| " if not grid else "- | "
+        end = " |\n" if not grid else " | -\n"
         if position == "center":
-            return "| " + " | ".join(["-" * self._max_str_length
-                                      for _ in self.headers]) + " |\n"
+            return (
+                start
+                + " | ".join(["-" * self._max_str_length for _ in self.headers])
+                + end
+            )
         elif position == "left":
-            return "| " + " | ".join([":" + "-" * (self._max_str_length - 1)
-                                      for _ in self.headers]) + " |\n"
+            return start + " | ".join(
+                [":" + "-" * (self._max_str_length - 1) for _ in self.headers]
+            )
         elif position == "right":
-            return "| " + " | ".join(["-" * (self._max_str_length - 1) + ":"
-                                      for _ in self.headers]) + " |\n"
+            return (
+                start
+                + " | ".join(
+                    [
+                        "-" * (self._max_str_length - 1) + ":"
+                        for _ in self.headers
+                    ]
+                )
+                + end
+            )
         elif position == "xcenter":
-            return ("| "
-                    + " | ".join([":" + "-" * (self._max_str_length - 2) + ":"
-                                  for _ in self.headers])
-                    + " |\n"
-                    )
+            return (
+                start
+                + " | ".join(
+                    [
+                        ":" + "-" * (self._max_str_length - 2) + ":"
+                        for _ in self.headers
+                    ]
+                )
+                + end
+            )
+
+    def _get_header_str(
+        self, position: str = "center", grid: bool = False
+    ) -> str:
+        """
+        Returns a string representation of the table header.
+
+        Args:
+            position (str): The alignment of the header cells.
+                Can be "left", "center", or "right".
+            grid (bool): Whether or not to include grid lines in
+                the header.
+
+        Returns:
+            `str`: A string representation of the table header.
+        """
+        separator = self._get_table_separator(position, grid)
+        # Show index 0 if grid is True, otherwise show normal
+        # boundaries
+        if grid:
+            # Create header indexes list
+            header_indexes = self.format_list(
+                [str(i) for i in range(len(self.headers))]
+            )
+
+            # Create the header string with the index
+            start = (
+                "  | "
+                + " | ".join(self.format_list(header_indexes, position))
+                + " |\n"
+            )
+
+            end = " | 0\n"
+        else:
+            start = "| "
+            end = " |\n"
+
+        # Create the header string
+        header_str = (
+            (start + separator + "0 | " if grid else start)
+            + " | ".join(self.format_list(self.headers, position))
+            + end
+        )
+
+        return header_str
+
+    def _get_rows_str(
+        self,
+        rows: list[list[str]],
+        position: str = "center",
+        grid: bool = False,
+    ) -> str:
+        """
+        Returns a string representation of the table rows.
+
+        Args:
+            rows (list[list[str]]): The rows to be formatted.
+            position (str): The alignment of the row cells.
+                Can be "left", "center", or "right".
+            grid (bool): Whether or not to include grid lines in
+                the rows.
+
+        Returns:
+            `str`: A string representation of the table rows.
+        """
+        # Create the rows string
+        rows_str = ""
+        for index, row in enumerate(rows):
+            start = "| " if not grid else f"{index + 1} | "
+            end = " |\n" if not grid else f" | {index + 1}\n"
+
+            # Add row separator inbetween rows
+            if grid:
+                rows_str += self._get_table_separator(position, grid)
+
+            # Create the row string
+            rows_str += (
+                start + " | ".join(self.format_list(row, position)) + end
+            )
+
+        return rows_str
 
     def _get_longest_value(self) -> int:
         """Return the largest length of all strings in `rows` and `headers`."""
@@ -53,6 +165,9 @@ class MarkdownTable:
 
     def _set_column_bools(self):
         """Update `has_totals_col` and `has_scan_col`."""
+        self.has_totals_col = False
+        self.has_scan_col = False
+
         for header in self.headers:
             if "scan" in header.casefold():
                 self.has_scan_col = True
@@ -63,8 +178,11 @@ class MarkdownTable:
         """Update `overlap` with all duplicate non-scan column values"""
         self.overlap[0].clear()
         # Set end index for checking columns for overlap
-        end = len(self.headers) if not self.has_totals_col \
+        end = (
+            len(self.headers)
+            if not self.has_totals_col
             else len(self.headers) - 1
+        )
 
         # Set start index to first non-scan column index
         start = 0
@@ -98,16 +216,46 @@ class MarkdownTable:
 
         self.columns = columns
 
+    def _update_counts(self) -> None:
+        """
+        Update the first index, count, of several attributes.
+
+        This method updates the following attributes of the 
+        MarkdownTable object:
+        - `num_rows`: the number of rows in the table
+        - `num_columns`: the number of columns in the table
+        - `duplicates[1]`: the number of duplicate rows in the table
+        - `non_duplicates[1]`: the number of non-duplicate rows in the 
+            table
+        - `unique_values[1]`: the number of unique values in the table
+        - `overlap[1]`: the number of overlapping values in the table
+
+        Returns:
+            None
+        """
+    def _update_counts(self) -> None:
+        """Update `num_rows` and `num_columns`."""
+        self.num_rows = len(self.rows)
+        self.num_columns = len(self.headers)
+        self.duplicates[1] = len(self.duplicates[0])
+        self.non_duplicates[1] = len(self.non_duplicates[0])
+        self.unique_values[1] = len(self.unique_values[0])
+        self.overlap[1] = len(self.overlap[0])
+
     def _update_table_stats(self) -> None:
         """
         Identifies duplicate values in `rows`.
 
-        Finds all duplicate values in `rows` and returns a `tuple` containing
-        the duplicate values, non-duplicate values, and unique values. Then
-        updates the `duplicates`, `non_duplicates`, and `unique_values` with:
+        Finds all duplicate values in `rows` and returns a `tuple`
+        containing the duplicate values, non-duplicate values, and
+        unique values. Then updates the `duplicates`, `non_duplicates`,
+        and `unique_values` with:
             - A `dict` of duplicate values and count of occurrences.
             - A `list` of non-duplicate values.
             - A `list` of all unique values
+
+        Also updates `_max_str_length`, `overlap`, and column booleans
+        for `has_totals_col` and `has_scan_col`.
 
         Returns:
             None
@@ -116,19 +264,9 @@ class MarkdownTable:
         remove_strings = ["////", "!!!!", "----", "====", "****", "~~~~"]
 
         # Flatten `rows` into a single list
-        rows = [value for row in self.rows
-                for value in row]
+        rows = flatten(self.rows)
         # Get all unique values and sort them
-        unique_values = sorted(set(rows))
-
-        # Remove `remove_strings` from `unique_values`
-        for string in remove_strings:
-            try:
-                # `string` found in `unique_values`
-                unique_values.remove(string)
-            except ValueError:
-                # `string` not found in `unique_values`
-                pass
+        unique_values = unique_list(rows, sort=True, remove=remove_strings)
 
         # Create containers for the duplicate and non-duplicate values
         duplicate_values = {}
@@ -153,6 +291,8 @@ class MarkdownTable:
         self.duplicates = [duplicate_values, len(duplicate_values)]
         self.non_duplicates = [non_duplicate_values, len(non_duplicate_values)]
         self.unique_values = [unique_values, len(unique_values)]
+        self._update_max_str_length()
+        self._update_counts()
         self._set_columns()
         self._set_overlap()
 
@@ -164,47 +304,81 @@ class MarkdownTable:
         """Add a row to the Markdown table."""
         # Check that row columns would not exceed the number of headers
         if len(values) > self.num_columns:
-            error_message = ("Row columns exceed the number of headers:\n"
-                             f"Num headers: {self.num_columns}\n"
-                             f"Num row columns: {len(values)}\n"
-                             f"Headers: {self.headers} "
-                             f"| type: {type(self.headers)}\n"
-                             f"Row: {values} | type: {type(values)}"
-                             )
+            error_message = (
+                "Row columns exceed the number of headers:\n"
+                f"Num headers: {self.num_columns}\n"
+                f"Num row columns: {len(values)}\n"
+                f"Headers: {self.headers} "
+                f"| type: {type(self.headers)}\n"
+                f"Row: {values} | type: {type(values)}"
+            )
             raise ValueError(error_message)
 
         # Add the row to the table
         self.rows.append(values)
-
-        # Update the `_max_str_length` attribute
-        self._update_max_str_length()
         self._update_table_stats()
+
+    def remove_row(self, index: int) -> None:
+        """Remove a row from the Markdown table."""
+        try:
+            self.rows.pop(index)
+        except IndexError:
+            print("Invalid row index!")
+        finally:
+            self._update_table_stats()
 
     def add_header(self, value: str) -> None:
         """Add a header to the Markdown table."""
         # Add the header
         self.headers.append(value)
 
-        # Update the number of columns
-        self.num_columns += 1
-
         # Update the `_max_str_length` attribute
-        self._update_max_str_length()
-        self._set_column_bools()
+        self._update_table_stats()
 
-    def format_list(self,
-                    values: list[str],
-                    position: str = "center"
-                    ) -> list[str]:
+    def remove_column(self, index: int) -> None:
+        """Remove a column from the Markdown table."""
+        try:
+            self.headers.pop(index)
+            for row in self.rows:
+                row.pop(index)
+        except IndexError:
+            print("Invalid column index!")
+        finally:
+            self._update_table_stats()
+
+    def edit(self, row: int, col: int, new: str) -> None:
+        """Edits values in the table, then updates the table stats."""
+        print(f"Row: {row} | Col: {col} | New: {new}")  # TODO remove
+        try:
+            if self.rows:
+                if row == 0:
+                    print(f"Editing header {self.headers[col]} to {new}")  # TODO remove
+                    self.headers[col] = new
+                    print("After changes:", self.headers[col])
+                else:
+                    print(f"Editing row {self.rows[row][col]} to {new}")  # TODO remove
+                    self.rows[row][col] = new
+                    print("After changes:", self.rows[row][col])  # TODO remove
+            else:
+                print("There are no rows in the table!")
+        except IndexError:
+            print("Invalid row or column index!")
+        finally:
+            self._update_table_stats()
+
+
+    def format_list(
+        self, values: list[str], position: str = "center"
+    ) -> list[str]:
         """Return a list of centered strings."""
         position = position.casefold()
         self._update_max_str_length()
         if position == "center" or position == "xcenter":
-            return [value.center(self._max_str_length) for value in values]
+            return [str(value).center(self._max_str_length) for value in values]
         elif position == "left":
-            return [value.ljust(self._max_str_length) for value in values]
+            return [str(value).ljust(self._max_str_length) for value in values]
         elif position == "right":
-            return [value.rjust(self._max_str_length) for value in values]
+            return [str(value).rjust(self._max_str_length) for value in values]
         else:
             raise ValueError(f"Invalid `position` value: {position}")
 
@@ -213,37 +387,47 @@ class MarkdownTable:
         self._update_max_str_length()
         return self._max_str_length
 
-    def to_string(self, position: str = "center") -> str:
+    def to_string(self, position: str = "center", grid: bool = False) -> str:
         """Return the Markdown table as a string."""
-        # Add the headers
-        table = ("| "
-                 + " | ".join(self.format_list(self.headers, position))
-                 + " |\n")
+        # Header string
+        table = self._get_header_str(position, grid)
 
-        # Add the header separator
-        table += self._get_table_separator(position)
+        # Header separator
+        table_separator = self._get_table_separator(position, grid)
+        if not grid:
+            table += table_separator
 
-        # Check that each row has the same number of columns as the headers
+        # Insert empty string values into row cells for rows that have
+        # fewer columns than the number of headers
         for i in range(len(self.rows)):
             if len(self.rows[i]) < self.num_columns:
-                # Add empty strings to the row if it has fewer columns
-                self.rows[i].extend([" " * self._max_str_length
-                                     for _ in
-                                     range(self.num_columns - len(self.rows[i]))
-                                     ])
+                self.rows[i].extend(
+                    [
+                        " " * self._max_str_length
+                        for _ in range(self.num_columns - len(self.rows[i]))
+                    ]
+                )
 
-        # Center all rows
+        # Center all rows and add them to the table
         rows = [self.format_list(row, position) for row in self.rows]
+        table += self._get_rows_str(rows, position, grid)
 
-        # Add the rows to the table
-        for row in rows:
-            table += "| " + " | ".join(row) + " |\n"
+        if grid:
+            # Add the row indexes separator
+            table += table_separator
+
+            # Get the row indexes
+            row_indexes = self.format_list(
+                [str(i) for i in range(len(self.headers))]
+            )
+
+            # Add the row indexes to the table
+            table += "  | " + " | ".join(row_indexes) + " |\n"
 
         return table
 
 
 class RegexTable(MarkdownTable):
-
     def __init__(self):
         super().__init__()
         self.patterns = RegexDict()
@@ -262,12 +446,8 @@ class RegexTable(MarkdownTable):
             "non-duplicates": RegexSearch.concat_patterns(
                 self.non_duplicates[0]
             ),
-            "unique": RegexSearch.concat_patterns(
-                self.unique_values[0]
-            ),
-            "overlap": RegexSearch.concat_patterns(
-                list(self.overlap[0])
-            ),
+            "unique": RegexSearch.concat_patterns(self.unique_values[0]),
+            "overlap": RegexSearch.concat_patterns(list(self.overlap[0])),
             "rows": [],
             "columns": [],
         }
@@ -309,7 +489,8 @@ class RegexTable(MarkdownTable):
         # Update attributes to point to the patterns
         self.duplicates_pattern = self.patterns.get_pattern("duplicates")
         self.non_duplicates_pattern = self.patterns.get_pattern(
-            "non-duplicates")
+            "non-duplicates"
+        )
         self.unique_values_pattern = self.patterns.get_pattern("unique")
         self.overlap_pattern = self.patterns.get_pattern("overlap")
         self.row_patterns = self.patterns.get_pattern("rows")
