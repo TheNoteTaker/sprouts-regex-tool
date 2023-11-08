@@ -9,7 +9,7 @@ setup(
     package_dir={"": "src"},
     entry_points={
             'console_scripts': [
-                'sprouts=sprouts.main:main',
+                'sprouts=sprouts_tool.main:main',
             ],
         },
 )
