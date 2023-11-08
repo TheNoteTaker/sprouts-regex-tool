@@ -1,304 +1,235 @@
-def segment_monotonic(lines: list[str]) -> list[list[str]]:
-    """
-    Segment a `list` of strings into monotonic `list`s.
+import logging
+import re
 
-    When something is monotonic, it either increases or decreases.
-    This method will segment a `list` of strings based on a strictly
-    positive trend. When a value following a previous value is less
-    than the previous value, it indicates a new segment.
+logger = logging.getLogger(__name__)
+
+
+def split_delimited_string(data: str, delimiters: list = []) -> list[list[str]]:
+    """
+    Creates a nested `list` from a delimited list of values.
+
+    A separator is a line which is blank (i.e. contains only
+    whitespace), or contains a valid separator character as `-`,
+    `=`, or `~`. The amount of separator characters does not
+    matter.
 
     Args:
-        lines: A `list` of strings.
+        data (str): String to split into sections.
+        separators (list, optional): Delimiter values that indicate
+            the start of a new section. Only the first value in each
+            line will be checked against the values found in.
+            Try to avoid passing " " as a separator as this can
+            cause issues with splitting the data. Prefer using
+            builtin `split()` method instead. Defaults to using
+            `_identify_delimiters`.
 
     Returns:
-        A `list` of positively monotonic `list`s.
+        list[list[str]]: Nested `list` split into sections based on
+            values found in `separators`.
     """
-    # Create a list of lists
-    segmented_lines = []
-    current_segment = []
-    last_item = None
+    # Set default separators if none given
+    if not delimiters:
+        delimiters, _, _ = identify_delimiters(data)
 
-    for value in lines:
-        try:
-            if last_item and int(value) < int(last_item):
-                # The current value is less than the last value,
-                # indicating a new segment
-                segmented_lines.append(current_segment)
-                current_segment = []
-        except ValueError as e:
-            # The value is not an integer, so it cannot be compared
-            # to the last value. This indicates a new segment.
-            segmented_lines.append(current_segment)
-            current_segment = []
+    # Create regex pattern from delimiters
+    re_pattern = "|".join(delimiters)
 
-        # Add the value to the current segment and update the last item
-        current_segment.append(value)
-        last_item = value
-
-    # Add the last segment to the list of segments
-    segmented_lines.append(current_segment)
-
-    # Return the segmented lines
-    return segmented_lines
-
-
-def segment_duplicates(lines: list[str], ignore: str = "|") -> list[list[str]]:
-    """
-    Segment a `list` of strings based on duplicates.
-
-    Every time a duplicate is found, a new segment is created.
-
-    Args:
-        lines: A `list` of strings.
-        ignore: Characters to be ignored when looking for
-            duplicates. These will not be included in the
-            segments.
-
-    Returns:
-        A `list` of `list`s of strings. Each inner `list` will be a
-        segment containing no duplicates.
-    """
-    segments = []
-    current_segment = []
-
-    # Iterate through the lines and identify duplicates
-    for line in lines:
-        # Check if line is a character to ignore
-        if line in ignore:
-            # Ignore the line
-            continue
-
-        if line in current_segment:
-            # The line is a duplicate, so start a new segment
-            segments.append(current_segment)
-            current_segment = []
-
-        # Add the line to the current segment
-        current_segment.append(line)
-
-    # Add the last segment to the list of segments
-    segments.append(current_segment)
-
-    # Return the segments
-    return segments
-
-
-def segment_separator(data: list[str], sep: str = "|") -> list[list[str]]:
-    """Segment a `list` of strings based on a separator."""
-    segment = []
-    segments = []
-    for item in data:
-        if item in sep:
-            # The item is a separator, so start a new segment
-            segments.append(segment)
-            segment = []
-
-            # Skip the separator
-            continue
-
-        segment.append(item)
-
-    # Add the last segment to the list of segments
-    if segment:
-        segments.append(segment)
-
-    # Return the segments
-    return segments
-
-
-def pad_list(
-    data: list,
-    pad: str = "0",
-    justify: str = "l",
-    max_length: int = 0,
-    remove: str = "",
-    ignore: str = "",
-) -> list:
-    """
-    Pad a `list` of strings with a specified character.
-
-    Pads a `list` of strings with a specified character until each
-    item in the `list` is the same length as the longest item in the
-    `list`. The `justify` parameter determines whether the padding
-    is added to the left, right, or both sides of the item.
-
-    Args:
-        data: A `list` of strings.
-        pad: The character to use for padding.
-        justify: The justification for the padding. Valid values are
-            "l" (left), "r" (right), and "c" (center).
-        max_length: The maximum `str` length of the items in the
-            list.
-        remove: A `str` of characters to filter out of the list.
-        ignore: A `str` of characters to ignore when filtering the
-            list.
-
-    Returns:
-        A `list` of strings with each item padded to the same length.
-    """
-    # Sanitize the data
-    data = [item for item in data if item not in remove]
-
-    try:
-        # Convert the data to a list of integers to remove leading zeros
-        data = intify(data)
-    except ValueError:
-        # A non-integer value was found in the list. Skip intifying.
-        pass
-
-    # Get max length of the list
-    data = stringify(data)
-    max_length = (
-        max([len(item) for item in data]) if not max_length else max_length
+    # Split initial data, then split by delimiters
+    logger.debug(
+        f"Using split_delimited_list function with regex pattern: {repr(re_pattern)}"
     )
 
-    # Set justify char
-    if justify in ["l", "left"]:
-        justify = ">"
-    elif justify in ["r", "right"]:
-        justify = "<"
-    elif justify in ["c", "center"]:
-        justify = "^"
-    else:
-        raise ValueError(f"Invalid `justify` value: {justify}")
+    # Split data by delimiters, then remove newlines and create sections
+    split_data = re.split("(?:-----|\n\n)", data)
+    split_data = [section.split() for section in split_data]
+    
+    logger.debug(f"Split data into {len(split_data)} sections.")
+    return split_data
 
-    # Pad each item in the list with `pad` until it is the same length
-    # as the longest item. `justify` determines whether the padding
-    # is added to the left or right of the item.
+
+def identify_delimiters(data: str | list[str]) -> tuple[dict, str, str] | None:
+    """
+    Uses regex patterns to try and identify a delimiter.
+
+    If `data` is a string, then each value should be on a new line.
+    This method will look for any non-alphabetic or non-numerical
+    value at the beginning of a line or any line that contains two
+    or more newline/carriage return characters.
+
+    Args:
+        data (str | list): Data to identify the delimiter of.
+
+    Returns:
+        tuple[dict, str, str] | None: A tuple containing a
+            dictionary with the identified delimiters and their
+            frequency, the most common delimiter, and the least
+            common delimiter. If no delimiter is found, returns
+            `None`.
+    """
+    # Regex pattern to find delimiters in a string
+    regex_pattern = r"^[^a-zA-Z0-9\n]+$|(?:[\n\r]){2,}"
+
+    # Convert data to a string if it is a list
+    if isinstance(data, list):
+        data = "\n".join(data)
+
+    # Get all non-alphanumeric characters at the beginning of a line
+    matches = re.findall(regex_pattern, data, flags=re.MULTILINE)
+
+    # Count matches
+    if matches:
+        match_counts = {match: data.count(match) for match in matches}
+        print(matches)
+        print(match_counts)
+
+        # Set the max and min delimiters
+        max_delim = max(match_counts, key=match_counts.get)
+        min_delim = min(match_counts, key=match_counts.get)
+
+        logger.debug(
+            f"Found the following delimiters: {match_counts}"
+        )
+        return match_counts, max_delim, min_delim
+    else:
+        logger.debug(f"No delimiters found in data")
+        # No delimiters found
+        return None
+
+
+def read_input_lines() -> list[str]:
+    """Read input from the user and return a list of lines."""
+    print("Enter a blank line to stop.")
+    lines = []
+    print("> ", end="")
+    while True:
+        # Read input from the user until a blank line is entered
+        line = input("")
+        if line == "":
+            # A blank line was entered, so stop reading input
+            break
+
+        lines.append(line)
+
+    # Strip all values in the list and return list of non-blank lines
+    return [line.strip() for line in lines if line.strip() != ""]
+
+
+def input_(
+    valid_input: list[str] | str = "",
+    invalid_input: list[str] | str = "",
+    message: str = ">",
+) -> str:
+    """
+    Read input from the user and return it if it is valid.
+
+    `valid_input` is a `list` or regex pattern of valid inputs.
+    `invalid_input` is a `list` or regex pattern of invalid inputs.
+    Do not use both at the same time.
+
+    Args:
+        message: The message to display to the user for each
+            input attempt.
+        valid_input: A list or regex pattern of valid inputs.
+        invalid_input: A list or regex pattern of invalid inputs.
+
+    Returns:
+        The user's input if it is valid.
+    """
+    # Convert valid and invalid input lists to lowercase
+    if valid_input:
+        if isinstance(valid_input, list):
+            # List of valid input was provided and not a regex pattern
+            # Convert all items in the list to lowercase
+            valid_input = [str(item).casefold() for item in valid_input]
+    elif invalid_input:
+        if isinstance(invalid_input, list):
+            # List of invalid input was provided and not a regex pattern
+            # Convert all items in the list to lowercase
+            invalid_input = [str(item).casefold() for item in invalid_input]
+    elif valid_input and invalid_input:
+        # Both valid and invalid input was provided
+        logger.error(
+            "`input_` method requires either `valid_input` or `invalid_input`, "
+            f"not both. Current values - valid_input: {valid_input} - "
+            f"invalid_input: {invalid_input} - message: {message}"
+        )
+        raise ValueError("Only `valid_input` or `invalid_input` can be used, not both.")
+    else:
+        # Neither valid nor invalid input was provided
+        logger.error(
+            "`input_` method requires either `valid_input` or `invalid_input`."
+        )
+        raise ValueError("Either `valid_input` or `invalid_input` must be used.")
+
+    while True:
+        # Read input from the user and check that it is either in the
+        # list or matches the regex pattern
+        user_input = input(f"{message} ")
+        invalid_message = "Invalid input, please try again."
+        total_attempts = 0
+
+        if isinstance(valid_input, list) or isinstance(invalid_input, list):
+            # For lists of valid or invalid input instead of a regex pattern
+            if invalid_input and (user_input.casefold() in invalid_input):
+                # The user entered an invalid input from `invalid_input`,
+                # so ask them to try again
+                print(invalid_message)
+                total_attempts += 1
+                continue
+            elif valid_input and (user_input.casefold() in valid_input):
+                # The user entered a valid input, so return it
+                total_attempts += 1
+                logger.debug(
+                    f"Valid input provided after {total_attempts} "
+                    f"attempts: {user_input}"
+                )
+
+                return user_input
+            else:
+                # The user entered an invalid input, but it was not inside
+                # `invalid_input`, still ask them to try again
+                total_attempts += 1
+                print(invalid_message)
+                continue
+
+        else:
+            # For a regex pattern instead of a list of valid or invalid inputs
+            if (valid_input and not re.search(valid_input, user_input)) or (
+                invalid_input and re.search(invalid_input, user_input)
+            ):
+                # The user entered an invalid input, so ask them to try
+                # again
+                total_attempts += 1
+                print("Invalid input, please try again.")
+                continue
+            else:
+                # The user entered a valid input, so return it
+                total_attempts += 1
+                logger.debug(
+                    f"Valid input provided after {total_attempts} "
+                    f"attempts: {user_input}"
+                )
+                return user_input
+
+def flatten_list(data: list[list], depth: int = 1) -> list:
+    """
+    Recursively flattens a nested `list` to the given depth.
+
+    Args:
+        data: The `list` to flatten.
+        depth: The depth to flatten the `list` to. Defaults to 1.
+
+    Returns:
+        The flattened `list`.
+    """
+    if depth <= 0:
+        return data
+
     ret = []
     for item in data:
-        if item not in ignore:
-            ret.append(f"{item:{pad}{justify}{max_length}}")
+        if isinstance(item, list):
+            ret.extend(flatten_list(item, depth - 1))
         else:
-            ret.append(f"{item:{item[0]}{justify}{max_length}}")
+            ret.append(item)
 
     return ret
-
-
-def remove_leading(data: list, remove: str = "0") -> list[str]:
-    """
-    Remove padding from a `list` of strings.
-
-    Args:
-        data: A `list` of strings.
-        remove: One or more characters to remove from each item in `data`.
-
-    Returns:
-        A `list` of strings with the padding removed.
-    """
-    for char in remove:
-        data = [item.lstrip(char) for item in data]
-
-    return data
-
-
-def stringify(data: list) -> list[str]:
-    """
-    Convert a `list` of items to a `list` of strings.
-
-    Args:
-        data: A `list` of items.
-
-    Returns:
-        A `list` of strings.
-    """
-    return [str(item) for item in data]
-
-
-def intify(data: list) -> list[int]:
-    """
-    Convert a `list` of items to a `list` of integers.
-
-    Args:
-        data: A `list` of items.
-
-    Returns:
-        A `list` of integers.
-    """
-    return [int(item) for item in data]
-
-
-def _flatten(data: any) -> tuple[list, int]:
-    """Helper method for `flatten`, flattens a `list` of lists."""
-    result = 1
-    try:
-        # Flatten the list one level
-        if isinstance(data[0], list):
-            # The first item in the list is a list, so flatten it
-            data = [item for sublist in data for item in sublist]
-        else:
-            result = -1
-    except (IndexError, TypeError):
-        # There are no more sublists to flatten
-        result = -1
-
-    return data, result
-
-
-def flatten(data: any, level: int = -1) -> list:
-    """
-    Flatten a `list` of lists recursively up to `level` times.
-
-    Args:
-        data: A `list` of lists.
-        level: The number of levels to flatten. If set to -1, all
-            sublists will be flattened.
-
-    Returns:
-        A `list` where all sublists up to `level` are flattened.
-    """
-    if level == -1:
-        while True:
-            # Flatten the list until there are no more sublists
-            data, result = _flatten(data)
-
-            if result == -1:
-                # There are no more sublists to flatten
-                break
-    else:
-        # Flatten the list `level` times
-        for _ in range(level):
-            data, _ = _flatten(data)
-
-    return data
-
-
-def unique_list(data: list, sort: bool = True, remove: str = "") -> list[str]:
-    """
-    Return a list of unique items from the provided list.
-
-    Returns a list of unique items from the provided list. If `sort`
-    is True, the list will be sorted before returning. If `ignore`
-    is provided, the items in the list will be filtered before
-    returning. All `null` values are removed.
-
-    Args:
-        data: A `list` of items.
-        sort: Whether to sort the list before returning.
-        remove: A string of characters to remove from each item when
-            filtering the list.
-
-    Returns:
-        A `list` of unique items from the provided list, optionally
-        sorted and filtered.
-    """
-    # Convert all data to strings to avoid comparison errors
-    for char in remove:
-        # Remove items from the `remove` list
-        data = [item for item in data if item != char and item is not None]
-
-    try:
-        # Remove duplicates and sort if `sort` is True
-        return sorted(set(data)) if sort else list(set(data))
-    except TypeError:
-        # Multiple data types were found in the list, so convert to
-        # strings and try again
-        return (
-            sorted(set(stringify(data))) if sort else list(set(stringify(data)))
-        )
-
-
-def get_max_str_length(data: any) -> int:
-    """Get the length of the longest string in a `list` of strings."""
-    data = stringify(flatten(data))
-    return max([len(item.strip()) for item in data]) if data else 0
