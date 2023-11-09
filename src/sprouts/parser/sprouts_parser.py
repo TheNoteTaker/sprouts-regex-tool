@@ -40,7 +40,7 @@ class Table:
             Sorts and aligns indexes and values of all `Series` in `data`.
     """
 
-    def __init__(self, filename: str, *args, **kwargs) -> None:
+    def __init__(self, filename: str, num_scan_col: int = 0, *args, **kwargs) -> None:
         """
         Initialize a `Table` object.
 
@@ -55,8 +55,9 @@ class Table:
         self.scan_col_df = None
         self.shipment_col_df = None
         self.headers = {}
+        self.num_scan_col = num_scan_col
 
-        base_data = self._pre_process_file(filename)
+        base_data = self._pre_process_file(filename, self.num_scan_col)
 
         # Create a DataFrame from the pre-processed data
         self.df = pd.concat(
@@ -73,15 +74,15 @@ class Table:
         # Fill missing values based on custom logic
         self.df.apply(self._fill_missing_values, axis=1)
 
+        self.compare = Comparator(self.df)
+
     def __str__(self) -> str:
         """
         Returns a string representation of the `Table` object.
         """
         return str(self.df)
 
-    def _pre_process_file(
-        self, filepath: str, num_scan_col: int = 1
-    ) -> list[pd.Series]:
+    def _pre_process_file(self, filepath: str, num_scan_col: int) -> list[pd.Series]:
         """
         Pre-process a file before parsing it with `pd.read_csv`.
 
@@ -141,25 +142,52 @@ class Table:
                 columns.
         """
         ret = []
+
         # Get all scan columns
-        ret.append(
-            pd.concat(
-                [df[col] for col in df.columns if col.casefold().startswith("scan")],
-                axis=1,
-            )
-        )
+        scan_columns = [
+            df[col] for col in df.columns if col.casefold().startswith("scan")
+        ]
 
         # Get all shipment columns
-        ret.append(
-            pd.concat(
-                [
-                    df[col]
-                    for col in df.columns
-                    if col.casefold().startswith("shipment")
-                ],
-                axis=1,
+        shipment_columns = [
+            df[col] for col in df.columns if col.casefold().startswith("shipment")
+        ]
+
+        if scan_columns:
+            ret.append(
+                pd.concat(
+                    [
+                        df[col]
+                        for col in df.columns
+                        if col.casefold().startswith("scan")
+                    ],
+                    axis=1,
+                )
             )
-        )
+        else:
+            logger.warning(
+                "No scan columns found in DataFrame passed to _isolate_columns()"
+            )
+            ret.append(pd.DataFrame())
+
+        if shipment_columns:
+            ret.append(
+                pd.concat(
+                    shipment_columns,
+                    axis=1,
+                )
+            )
+        else:
+            logger.warning(
+                "No shipment columns found in DataFrame passed to _isolate_columns()"
+            )
+            ret.append(pd.DataFrame())
+
+        if not shipment_columns and not scan_columns:
+            logger.warning(
+                "No scan or shipment columns found in DataFrame passed "
+                "to _isolate_columns()"
+            )
 
         return ret
 
@@ -228,8 +256,8 @@ class Table:
             headers["indices"][1].append(index)
             index += 1
 
-        logger.debug(f"Column headers generated: {self.headers}")
         self.headers = headers
+        logger.debug(f"Column headers generated: {self.headers}")
 
     def _create_series(
         self, data: list[str], name: str = "", sort: bool = True
@@ -312,9 +340,32 @@ class Table:
                 with missing values. This should be provided by
                 `pd.apply`.
         """
+        # If there are no scan columns in the table
+        if self.num_scan_col <= 0:
+            for col in df_row.index:
+                if pd.isna(df_row[col]):
+                    df_row[col] = "-----"
+
+            return df_row
+
         # Check if the index exists in any 'Scan' or 'Shipment' columns
-        in_scan = (self.scan_col_df == df_row.name).any(axis=1)
-        in_shipment = (self.shipment_col_df == df_row.name).any(axis=1)
+        try:
+            in_scan = (self.scan_col_df == df_row.name).any(axis=1)
+        except KeyError as e:
+            logger.error(
+                "KeyError occurred while trying to check if index "
+                f"'{df_row.name}' exists in any 'Scan' columns. "
+            )
+            in_scan = pd.Series(False)
+
+        try:
+            in_shipment = (self.shipment_col_df == df_row.name).any(axis=1)
+        except KeyError as e:
+            logger.error(
+                "KeyError occurred while trying to check if index "
+                f"'{df_row.name}' exists in any 'Shipment' columns. "
+            )
+            in_shipment = pd.Series(False)
 
         # Apply the fill logic to the df_row based on the conditions
         for col in df_row.index:
@@ -322,15 +373,15 @@ class Table:
             # if it has the value matching the index)
             if pd.isna(df_row[col]):
                 # Case 1: Exists in both 'Scan' and 'Shipment' -> "-----"
-                if in_scan.loc[df_row.name] and in_shipment.loc[df_row.name]:
+                if in_scan.any() and in_shipment.any():
                     df_row[col] = "-----"
 
                 # Case 2: Exists in a 'Scan' but not any 'Shipment' -> "/////"
-                elif in_scan.loc[df_row.name] and not in_shipment.loc[df_row.name]:
+                elif in_scan.any() and not in_shipment.any():
                     df_row[col] = "/////"
 
                 # Case 3: Does not exist in any 'Scan' -> "!!!!!"
-                elif not in_scan.loc[df_row.name]:
+                elif not in_scan.any():
                     df_row[col] = "!!!!!"
 
         return df_row
@@ -373,6 +424,11 @@ class Table:
 
         return reindexed_series
 
+
+class Comparator:
+    def __init__(self, df: pd.DataFrame) -> None:
+        self.df = df
+
     def _discard_filler_values(self, data: set[str]) -> set[str]:
         """
         Discard filler values from a set of values.
@@ -384,9 +440,49 @@ class Table:
         Returns:
             set[str]: The set of values with filler values removed.
         """
+        if data and not isinstance(data, set):
+            data = set(data)
+
         return data.difference({"-----", "/////", "!!!!!"})
 
-    # ==========DATA RETRIEVAL METHODS==========
+    def get_header_indices(self, headers: list[str]) -> dict[str, list[int]]:
+        """
+        Gets the indices of each header type in `headers` in `df`.
+
+        Treats each header in `headers` as a search pattern and searches
+        for matches in the column headers of `df`. Returns a `dict`
+        containing the indices of where each header type was found in
+        `df`.
+
+        Example:
+
+        - `headers = ["Scan", "Shipment"]`
+        - `df.columns = ["Scan 1", "Scan 2", "Shipment 3", "Shipment
+          4"]`
+
+        The following `dict` would be returned:
+
+            `{"Scan": [0, 1], "Shipment": [2, 3]}`
+
+        Args:
+            headers (list[str]): `list` of header types to search for.
+
+        Returns:
+            dict[str, list[int]]: A `dict` containing the indices of
+                where each header type was found in `df`.
+        """
+        ret = {}
+        for header in headers:
+            # Get all column headers that match the header pattern
+            matches = [
+                col for col in self.df.columns if header.casefold() in col.casefold()
+            ]
+
+            # Get the index of each header
+            ret[header] = [self.df.columns.get_loc(match) for match in matches]
+
+        logger.debug(f"Found {len(ret)} header indices for headers: {headers}")
+        return ret
 
     def get_unique_values(self, column_indexes: list[int]) -> list[str]:
         """
@@ -400,87 +496,289 @@ class Table:
             list[str]: List of unique values in the specified
                 columns.
         """
-        return [set(self.df.iloc[:, idx]) for idx in column_indexes]
+        if not self.validate_indexes(column_indexes):
+            return []
 
-    def compare(
-        self, column_indexes: list[int], comp_type: str = "overlap"
-    ) -> list[str]:
+        unique_values = [set(self.df.iloc[:, idx]) for idx in column_indexes]
+
+        logger.debug(
+            f"Found {len(unique_values)} unique values " f"for indexes {column_indexes}"
+        )
+        return unique_values
+
+    def get_values(self, column_indexes: list[int]) -> list[str]:
         """
-        Get overlapping values between all columns in `column_indexes`.
-
-        Gets the intersection of all values in all columns in
-        `column_indexes`.
+        Returns a `list` of all values in the specified columns.
 
         Args:
-            column_indexes (list[int]): `list` of column indexes to get
-                the intersection of.
+            column_indexes (list[int]): List of column indexes to
+                retrieve values from.
 
         Returns:
-            list[str]: A `list` of all values that exist in all
-                columns in `column_indexes`.
+            list[str]: List of all values in the specified columns.
         """
-        if not column_indexes:
-            raise ValueError("No column indexes given to get_overlap()")
-        elif len(column_indexes) < 2:
-            raise ValueError(
-                "get_overlap() requires at least 2 column indexes to compare"
-            )
+        if not self.validate_indexes(column_indexes):
+            return []
 
-        # Get all unique values
-        
+        return list(self.df.iloc[:, column_indexes].values.flatten())
+
+    def get_duplicates(self, column_indexes: list[int]) -> list[str]:
+        """
+        Returns all duplicates in the specified columns.
+
+        Args:
+            column_indexes (list[int]): A `list` of column
+                indexes to search for duplicates.
+
+        Returns:
+            list[str]: A `list` of all values that appear more
+                than once in the specified columns.
+        """
+        # Get all values in all columns (in list form)
+        all_values_list = self.get_values(column_indexes)
+
+        # Get all values that appear more than once
+        duplicate_values = list(
+            self._discard_filler_values(
+                [val for val in all_values_list if list(all_values_list).count(val) > 1]
+            )
+        )
+
+        logger.info(
+            f"Found {len(duplicate_values)} duplicates values "
+            f"for indexes: {column_indexes}"
+        )
+        return duplicate_values
+
+    def get_overlap(self, column_indexes: list[int]) -> list[str]:
+        """
+        Returns a overlapping values in the specified columns.
+
+        Gets the intersection of all values in the specified
+        columns.
+
+        Args:
+            column_indexes (list[int]): A `list` of column indexes
+                to check for overlap.
+
+        Returns:
+            list[str]: A list of values that overlap in all columns
+                specified by column_indexes.
+        """
+        if not self.validate_indexes(column_indexes, min_=2):
+            return []
+
         unique_values = self.get_unique_values(column_indexes)
+        ret = set.intersection(*unique_values)
 
-        comp_type = comp_type.casefold()
-        if comp_type == "overlap":
-            ret = set.intersection(*unique_values)
-        elif comp_type == "difference":
-            ret = set.difference(*unique_values)
-        elif comp_type.startswith("scan"):
-            # Get valid scan column indexes in column_indexes
-            scan_col_indexes = list(set(self.headers.get("indices")[0]).intersection(
-                column_indexes
-            ))
-
-            # Get valid shipment column indexes in column_indexes
-            shipment_col_indexes = list(set(self.headers.get("indices")[1]).intersection(
-                column_indexes
-            ))
-
-            # Compare scan columns with indexes in column_indexes to
-            # shipment columns with indexes in column_indexes
-            if scan_col_indexes and shipment_col_indexes:
-                # Get values in scan columns
-                scan_col_values = set(
-                    self.df.iloc[:, scan_col_indexes].values.flatten()
-                )
-
-                # Get values in shipment columns
-                shipment_col_values = set(
-                    self.df.iloc[:, shipment_col_indexes].values.flatten()
-                )
-
-                # Get either intersection or difference of values
-                if comp_type == "scanoverlap":
-                    ret = scan_col_values.intersection(shipment_col_values)
-                elif comp_type == "scandifference":
-                    ret = scan_col_values.difference(shipment_col_values)
-                    
-            else:
-                # Either no valid shipment or no valid scan indexes provided
-                ret = []
-
-        else:
-            raise ValueError(
-                f"Invalid comparison type '{comp_type}'. Valid types are 'overlap' and 'difference'."
+        if ret:
+            logger.info(
+                f"Found {len(ret)} overlapping values for " f"indexes: {column_indexes}"
             )
+            return list(self._discard_filler_values(ret))
+        else:
+            logger.info(f"No overlap found for indexes: {column_indexes}")
+            return []
 
-        # Discard filler values
+    def get_differences(self, column_indexes: list[int]) -> list[str]:
+        """
+        Returns symmetric difference of values in specified columns.
+
+        Args:
+            column_indexes (list[int]): List of column indexes
+                to compare.
+
+        Returns:
+            list[str]: List of unique values that are different
+                across the specified columns.
+        """
+        if not self.validate_indexes(column_indexes, min_=2):
+            return []
+
+        unique_values = self.get_unique_values(column_indexes)
+        ret = set.symmetric_difference(*unique_values)
+
         if ret:
             ret = list(self._discard_filler_values(ret))
 
-        logger.info(f"Compared columns {column_indexes} with type '{comp_type}'.")
-        logger.info(f"Total values found in comparison: {len(ret)}")
-        return ret
+            logger.info(f"Found {len(ret)} differences for indexes: {column_indexes}")
+            return ret
+        else:
+            logger.info(f"No differences found for indexes: {column_indexes}")
+            return []
+
+    def get_scan_overlap(self, column_indexes: list[int]) -> list[str]:
+        """
+        Gets overlapping values between scan and shipment columns.
+
+        Returns a list of overlapping values between scan and
+        shipment columns for the given column indexes.
+
+        Args:
+            column_indexes (list[int]): List of column indexes to
+                check for overlap.
+
+        Returns:
+            list[str]: List of overlapping values between scan and
+                shipment columns.
+        """
+        if not self.validate_indexes(column_indexes, min_=2):
+            return []
+
+        scan_cols, shipment_cols = self._get_scan_and_ship_cols(column_indexes)
+
+        if scan_cols and shipment_cols:
+            # Get overlap of scan and shipment columns
+            intersection = list(
+                self._discard_filler_values(set(scan_cols).intersection(shipment_cols))
+            )
+
+            logger.info(
+                f"Found {len(intersection)} scan overlapping values "
+                f"for indexes: {column_indexes}"
+            )
+            return intersection
+        else:
+            logger.warning(
+                f"No scan or shipment columns found for indexes: {column_indexes}"
+            )
+            return []
+
+    def get_scan_differences(self, column_indexes: list[int]) -> list[str]:
+        """
+        Get the differences between the scan and shipment columns.
+
+        Returns a list of strings representing the differences
+        between the shipment columns and scan columns for the
+        given column indexes.
+
+        All values that exist in the shipment columns that are not
+        found in the scan columns are returned.
+
+        Args:
+            column_indexes: A `list` of integers representing the
+                column indexes to compare.
+
+        Returns:
+            list[str]: A `list` of strings representing the
+                differences between the shipment columns and scan
+                columns.
+        """
+        if not self.validate_indexes(column_indexes, min_=2):
+            return []
+
+        scan_cols, shipment_cols = self._get_scan_and_ship_cols(column_indexes)
+
+        if scan_cols and shipment_cols:
+            ret = list(set(shipment_cols).difference(scan_cols))
+
+            logger.info(
+                f"Found {len(ret)} scan differences for indexes: {column_indexes}"
+            )
+            return ret
+        else:
+            logger.warning(
+                f"No scan or shipment columns found using "
+                f"get_scan_differences() for indexes: "
+                f"{column_indexes}"
+            )
+            return []
+
+    def validate_indexes(self, column_indexes: list[int], min_: int = 1) -> list[bool]:
+        """
+        Checks that all indexes in `column_indexes` are valid indexes.
+
+        Looks at indices in column_indexes and verifies that they
+        are all within range of the total columns in `df`.
+
+        Returns a `list` of `bool` values indicating whether each
+        index in `column_indexes` is invalid.
+            `True` = valid
+            `False` = invalid
+
+        Args:
+            column_indexes (list[int]): list of column indexes to
+                check.
+            min (int, optional): The minimum number of indexes that
+                must be given. Defaults to 1.
+
+        Returns:
+            list[bool]: A `list` of `bool` values indicating whether
+                each index in `column_indexes` is invalid.
+        """
+        if not column_indexes:
+            logger.error("Index validation failed. No column indexes given.")
+            return [True]  # Failed validation
+        elif len(column_indexes) < min_:
+            logger.error(
+                f"Index validation failed, less than 2 column indexes given. "
+                f"Indices given: {column_indexes}"
+            )
+            return [True]  # Failed validation
+
+        # Check that all indexes are valid
+        max_ = len(self.df.columns)
+        index_check = [(0 <= idx < max_) for idx in column_indexes]
+
+        # Fail validation if any invalid indexes are found
+        if not any(index_check):
+            # Invalid column indexes found in column_indexes
+            logger.warning(
+                "Invalid column index given to get_overlap(). "
+                "Invalid Index check (True=valid | False=invalid): "
+                f"{list(zip(column_indexes, index_check))}"
+            )
+
+        return index_check
+
+    def _get_scan_and_ship_cols(
+        self, column_indexes: list[int]
+    ) -> list[list[int], list[int]]:
+        """
+        Get scan and shipment column values in the specified columns.
+
+        Verifies that the indices in `column_indexes` are valid
+        indices, then looks for scan and shipment columns in the
+        headers of `df`. Returns a `list` containing two `list`s,
+        the first containing the values in the scan columns and
+        the second containing the values in the shipment columns.
+
+        Args:
+            column_indexes (list[int]): List of column indexes to
+                search for scan and shipment columns.
+
+        Returns:
+            list[list[int], list[int]]: A list containing two lists,
+                the first containing the values in the scan columns
+                and the second containing the values in the
+                shipment columns.
+        """
+        # Look for scan and shipment columns indices in headers
+        indices = self.get_header_indices(["scan", "shipment"])
+
+        # Get the intersection of the indices and column_indexes
+        scan_indices = list(set(indices.get("scan")).intersection(column_indexes))
+        shipment_indices = list(
+            set(indices.get("shipment")).intersection(column_indexes)
+        )
+
+        if scan_indices:
+            # Get values in scan columns
+            scan_col_values = list(
+                self._discard_filler_values(self.get_values(scan_indices))
+            )
+        else:
+            scan_col_values = []
+
+        if shipment_indices:
+            # Get values in shipment columns
+            shipment_col_values = list(
+                self._discard_filler_values(self.get_values(shipment_indices))
+            )
+        else:
+            shipment_col_values = []
+
+        return [scan_col_values, shipment_col_values]
 
 
 class RegexTable(Table):

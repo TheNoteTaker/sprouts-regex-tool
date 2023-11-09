@@ -171,7 +171,7 @@ def get_parent_dir(filepath: str, times: int = 1) -> str:
         path = os.path.dirname(path)
 
     logger.debug(
-        f"Traversed [{filepath}] {times} times to get parent directoroy filepath: {path}"
+        f"Traversed [{filepath}] {times} times to get parent directory filepath: {path}"
     )
     return path
 

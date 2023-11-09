@@ -40,7 +40,7 @@ def split_delimited_string(data: str, delimiters: list = []) -> list[list[str]]:
     )
 
     # Split data by delimiters, then remove newlines and create sections
-    split_data = re.split("(?:-----|\n\n)", data)
+    split_data = re.split(re_pattern, data)
     split_data = [section.split() for section in split_data]
     
     logger.debug(f"Split data into {len(split_data)} sections.")
@@ -78,9 +78,17 @@ def identify_delimiters(data: str | list[str]) -> tuple[dict, str, str] | None:
 
     # Count matches
     if matches:
-        match_counts = {match: data.count(match) for match in matches}
-        print(matches)
-        print(match_counts)
+        match_counts = {}
+        # Sort matches based on length to account for duplicate
+        # characters (such as "-" and "--")
+        matches.sort(key=len, reverse=True)
+        
+        for match in matches:
+            # get the count of each match
+            match_counts[match] = data.count(match)
+            
+            # Remove the match from the data
+            data = data.replace(match, "")
 
         # Set the max and min delimiters
         max_delim = max(match_counts, key=match_counts.get)

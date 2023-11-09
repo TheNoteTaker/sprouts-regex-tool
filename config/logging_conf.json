@@ -20,12 +20,12 @@
         }
     },
     "loggers": {
-        "sprouts_tool.utils": {
-            "level": "DEBUG",
+        "sprouts.utils": {
+            "level": "WARNING",
             "handlers": ["file"]
         },
-        "sprouts_tool.parser": {
-            "level": "DEBUG",
+        "sprouts.parser": {
+            "level": "WARNING",
             "handlers": ["file"]
         }
     },
