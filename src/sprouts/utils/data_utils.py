@@ -241,3 +241,32 @@ def flatten_list(data: list[list], depth: int = 1) -> list:
             ret.append(item)
 
     return ret
+
+def intify_list(data: list, sort: bool = False) -> list:
+    """
+    Converts all values in a list to integers.
+
+    Args:
+        data: The `list` to convert.
+        sort: Whether to sort the `list` after converting to integers.
+            Defaults to `False`.
+
+    Returns:
+        The converted `list`.
+    """
+    if sort:
+        return sorted([int(item) for item in data])
+    else:
+        return [int(item) for item in data]
+
+def stringify_list(data: list) -> list:
+    """
+    Converts all values in a list to strings.
+
+    Args:
+        data: The `list` to convert.
+
+    Returns:
+        The converted `list`.
+    """
+    return [str(item) for item in data]
