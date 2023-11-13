@@ -1,0 +1,69 @@
+
+====================MAIN TABLE====================
+  Scan 1 Scan 2 Shipment 3 Shipment 4
+1      1      1          1      -----
+2      2      2      /////      /////
+3  .....      3      /////      /////
+4  !!!!!  !!!!!          4          4
+5  !!!!!  !!!!!      !!!!!          5
+6  !!!!!  !!!!!      !!!!!          6
+Filepath: /home/rashino/repos/sprouts/data/input.txt
+Filter values: -----, /////, !!!!!, .....
+Column headers: Scan 1, Scan 2, Shipment 3, Shipment 4
+Total columns: 4
+Total rows: 6
+
+====================All Values====================
+  all_values
+1          1
+2          2
+3          3
+4          4
+5          5
+6          6
+........................
+Total values: 6
+All values: 1, 2, 3, 4, 5, 6
+Regex Pattern: ^(4|2|3|1|5|6)$
+
+====================Unique Values====================
+  unique_values
+1             1
+2             2
+3             3
+4             4
+5             5
+6             6
+........................
+Total values: 6
+All values: 1, 2, 3, 4, 5, 6
+Regex Pattern: ^(4|2|3|1|5|6)$
+
+====================Duplicate Values====================
+Set 1  Count
+    1      3
+    2      2
+    4      2
+........................
+Total values: 3
+All values: 1, 2, 2, 3, 4
+Regex Pattern: ^(4|1|3|2)$
+
+====================Overlap Values====================
+
+No values found.
+
+====================Differences Symmetric====================
+1
+3
+5
+6
+........................
+Total values: 4
+All values: 1, 3, 5, 6
+Regex Pattern: ^(1|5|3|6)$
+
+====================Differences Asymmetric====================
+
+No values found.
+

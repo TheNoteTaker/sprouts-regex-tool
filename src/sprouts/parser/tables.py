@@ -1,6 +1,5 @@
 from .. import utils
 import pandas as pd
-import numpy as np
 import logging
 import re
 
@@ -42,8 +41,10 @@ class Table:
                     dictionary of Series objects.
         _get_values(column_indexes: list[int], unique: bool = False):
             Retrieves all values in specified columns.
-        hard_refresh(): Updates the table with the latest data from
-            the DataFrame.
+        hard_refresh(*args, **kwargs): Updates the table with the
+            latest data from the `DataFrame`.
+        reindex_df(df: pd.DataFrame, *args, **kwargs): Reindexes and
+            aligns `df` so all columns are in order.
         align_series_list(data: list[pd.Series]): Aligns the indexes
             and values of all Series in the list.
         validate_indexes(column_indexes: list[int], min_: int = 1):
@@ -53,7 +54,7 @@ class Table:
         filter_list(data: list, remove_values: list[str]): Filters a
             list of values.
         get_header_indices(headers: list[str]): Retrieves indices of
-            each header type in the DataFrame.
+            each header type in the `DataFrame`.
         get_values(column_indexes: list[int], unique: bool = False):
             Retrieves all values in specified columns or batches.
         get_duplicates(column_indexes: list[int]): Identifies
@@ -62,6 +63,19 @@ class Table:
             values in specified columns.
         get_differences(column_indexes: list[int]): Determines
             symmetric differences in specified columns.
+        set_iloc(row: int | list[int], col: int | list[int],
+            value: int): Sets a value in the `DataFrame` at the
+                specified row and column.
+        set_loc(row: str | list[str], col: str | list[str],
+            value: int): Sets a value in the `DataFrame` at the
+                specified row and column.
+        info(columns: list[str] | list[list[str]]): Prints information
+            about the `Table` object.
+        dict_to_df_dict(data: dict, key_name: str = "Set",
+            fill_na_str: str = "-----"): Converts all values in a
+                dictionary to pandas `DataFrames`.
+        add_counts_col(df: pd.DataFrame, all_values: list[str]):
+            Adds a count column to a `DataFrame`.
 
     Usage:
         table = Table("path/to/file.txt")
@@ -128,8 +142,19 @@ class Table:
         # Split the file contents into sections
         sections = utils.split_delimited_string(file_contents)
 
+        if not sections:
+            raise ValueError(f"No sections found in file: {filepath}")
+
         # Convert sections to a Series objects and align them
-        section_series = self._create_series_from_list(sections)
+        if isinstance(sections[0], list):
+            # Discard all non-numeric values
+            sections = [
+                [int(i) for i in section if str(i).isnumeric()] for section in sections
+            ]
+            section_series = self._create_series_from_list(sections)
+        else:
+            section_series = self._create_series(sections)
+
         section_series = self.align_series_list(section_series)
 
         logger.info(f"Pre-processed file [{filepath}].")
@@ -164,10 +189,25 @@ class Table:
                 sorted_list = sorted(set([int(i) for i in data]))
             except ValueError:
                 # Data cannot be sorted numerically
-                sorted_list = sorted(set(data))
+                logger.debug(
+                    f"Failed to sort series [{name}] numerically. Attempting to "
+                    "discard filler and non-numeric values and sort again. "
+                    f"Data: {data}"
+                )
+                # Discard filler values
+                values = self.filter_list(data, self.filter_values)
+
+                # Discard non-numeric values
+                values = [int(i) for i in values if str(i).isnumeric()]
+
+                # Attempt to sort again
+                logger.debug(f"Data after filtering: {values}")
+                sorted_list = sorted(set(values))
+
+                logger.debug(f"Successfully sorted the series [{name}].")
 
             # Convert data back to a list of strings
-            data = [str(i) for i in sorted_list]
+            data = utils.stringify_list(sorted_list)
 
         # Create a pandas series from the data
         return pd.Series(data, name=name)
@@ -206,7 +246,8 @@ class Table:
         """
         Returns a `list` of all values in the specified columns.
 
-        Will only return unique values if `unique` is `True`.
+        Will only return unique values if `unique` is `True`. All
+        values are filtered by the `filter_values` attribute.
 
         Args:
             column_indexes (list[int]): List of column indexes to
@@ -232,21 +273,45 @@ class Table:
 
         return self.filter_list(values, self.filter_values)
 
-    def hard_refresh(self) -> None:
+    def hard_refresh(self, *args, **kwargs) -> None:
         """
-        Update the table with the latest data from the DataFrame.
+        Updates the table with the latest data from the DataFrame.
 
-        This method breaks down the `DataFrame` into a `list` of
-        `Series` objects, aligns them, and then reassembles them
-        into a new `DataFrame`. This also reindexes the columns
+        This method uses the `reindex_df()` method to reindex the
+        DataFrame and update the table with the latest data.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
+        self.df = self.reindex_df(self.df, *args, **kwargs)
+
+    def reindex_df(self, df: pd.DataFrame, *args, **kwargs) -> pd.DataFrame:
+        """
+        Reindexes and aligns `df` so all columns are in order.
+
+        Breaks down the `DataFrame` into a `list` of `Series`
+        objects, aligns them so that all series values are the same
+        length and contain all unique values, and then reassembles
+        them into a new `DataFrame`. This also reindexes the columns
         of the `DataFrame` to ensure that all columns are in
         order.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to reindex.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            pd.DataFrame: The reindexed DataFrame.
         """
         series_list = self._create_series_from_list(
-            [self.df[col].values for col in self.df]
+            [self.filter_list(df[col].values, self.filter_values) for col in df],
+            headers=list(df.columns),
         )
         series_list = self.align_series_list(series_list)
-        self._init_table(series_list)
+
+        return pd.concat(series_list, *args, axis=1, **kwargs)
 
     def align_series_list(
         self,
@@ -267,8 +332,11 @@ class Table:
             list[pd.Series]: A list of reindexed pandas `Series`
                 objects.
         """
-        if not data:
-            raise ValueError("No data given to align_series()")
+        if not isinstance(data, pd.Series) and not isinstance(data[0], pd.Series):
+            raise ValueError(f"Invalid data given to align_series_list(): {data}")
+        elif isinstance(data, pd.Series):
+            # Convert single Series to a list of Series
+            data = [data]
 
         # Get all unique values
         unique_values = list(set().union(*[series.values for series in data]))
@@ -285,7 +353,7 @@ class Table:
         # Reindex all series to include all unique values (and put them
         # in order)
         reindexed_series = [
-            pd.Series(index=s.values, data=s.values).reindex(unique_values)
+            pd.Series(index=s.values, data=s.values, name=s.name).reindex(unique_values)
             for s in data
         ]
 
@@ -363,7 +431,7 @@ class Table:
             }
         self.df.rename(*args, columns=headers, inplace=True, **kwargs)
 
-    def filter_list(self, data: list, remove_values: list[str]) -> list[str]:
+    def filter_list(self, data: list | set, remove_values: list[str]) -> list[str]:
         """
         Filters a list of values.
 
@@ -385,9 +453,10 @@ class Table:
         if not data:
             return []
 
-        regex_pattern = rf"(?:{'|'.join(remove_values)})"
+        regex_pattern = re.compile("|".join([re.escape(val) for val in remove_values]))
+        logger.debug(f"Filtering values with regex pattern: {regex_pattern}")
 
-        return [val for val in data if not any(re.findall(regex_pattern, str(val)))]
+        return [val for val in data if not regex_pattern.match(str(val))]
 
     def get_header_indices(self, headers: list[str]) -> dict[str, list[int]]:
         """
@@ -425,7 +494,14 @@ class Table:
             # Get the index of each header
             ret[header] = [self.df.columns.get_loc(match) for match in matches]
 
-        logger.debug(f"Found {len(ret)} header indices for headers: {headers}")
+        # Logging for header indices
+        if ret:
+            total_indices = sum([len(ret[key]) for key in ret])
+        logger.debug(
+            f"Found {total_indices} header indices for headers: {headers}. "
+            f"Header indices: {ret}"
+        )
+
         return ret
 
     def get_values(
@@ -437,6 +513,8 @@ class Table:
         If a `list` of lists is provided for `column_indexes`, a
         `list` of lists will be returned where each list contains
         values from a batch.
+
+        All values are filtered by the `filter_values` attribute.
 
         Args:
             column_indexes (list[int] | list[list[int]]): List of
@@ -670,21 +748,246 @@ class Table:
             logger.info(f"No differences found for indexes: {column_indexes}")
 
         return list(ret)
-    
-    def set_iloc(self, row: int, col: int, value: str) -> None:
+
+    def set_iloc(self, row: int | list[int], col: int | list[int], value: int) -> None:
         """
         Sets a value in the DataFrame at the specified row and column.
 
+        Performs a hard refresh after setting the value. This will
+        update the table with the latest data from the DataFrame,
+        reindexing the columns.
+
         Args:
-            row (int): The row index to set.
-            col (int): The column index to set.
-            value (str): The value to set.
+            row (int | list[int]): The row index or `list` of row
+                indices to set.
+            col (int | list[int]): The column index or `list` of
+                column indices to set.
+            value (int): The value to set.
+        """
+        try:
+            self.df.iloc[row, col] = int(value)
+            self.hard_refresh()
+        except IndexError:
+            logger.error(
+                f"IndexError: Unable to set value [{value}] at row {row} and column {col}."
+            )
+
+    def set_loc(self, row: str | list[str], col: str | list[str], value: int) -> None:
+        """
+        Sets a value in the DataFrame at the specified row and column.
+
+        Performs a hard refresh after setting the value. This will
+        update the table with the latest data from the DataFrame,
+        reindexing the columns.
+
+        Args:
+            row (str | list[str]): The row label or `list` of row
+                labels to set.
+            col (str | list[str]): The column label or `list` of
+                column labels to set.
+            value (int): The value to set.
+        """
+        try:
+            self.df.loc[row, col] = int(value)
+            self.hard_refresh()
+        except IndexError:
+            logger.error(
+                f"IndexError: Unable to set value [{value}] at row {row} and column {col}."
+            )
+
+    def info(
+        self, columns: list[str] | list[list[str]] = None, regex: bool = False
+    ) -> tuple[str, dict[str, pd.DataFrame], dict[str, list[str]]]:
+        """
+        Gets information about the `Table` object.
+
+        Passing a list of column indices (or a list of lists of column
+        indices) to `columns` will perform additional analysis on the
+        specified columns. Additionally, setting `regex` to `True` will
+        add a regex pattern for all values in the specified columns.
+
+        Args:
+            columns (list[str], optional): List of column names to
+                perform additional analysis on. Defaults to `None`.
+            regex (bool, optional): Whether to print a regex pattern
+                for all analyzed values. Defaults to `False`.
 
         Returns:
-            None
+            tuple(str, dict[str, pd.DataFrame], dict[str, list[str]]):
+                A `tuple` containing:
+                    - A string containing information about the
+                      `Table` object.
+                    - A `dict` containing a `list` of values for each
+                      type of analysis performed on the specified
+                      columns.
+                    - A `dict` containing a pandas `DataFrame` for
+                      each type of analysis performed on the specified
+                      columns.
         """
-        self.df.iloc[row, col] = value
-        self.hard_refresh()
+        output = "\n====================MAIN TABLE====================\n"
+        output += f"{self.df}\n"
+        output += f"Filepath: {self.filepath}\n"
+        output += "Filter values: " + ", ".join(self.filter_values) + "\n"
+        output += "Column headers: " + ", ".join(list(self.df.columns)) + "\n"
+        output += f"Total columns: {len(self.df.columns)}\n"
+        output += f"Total rows: {len(self.df.index)}\n"
+
+        # Perform additional analysis on specified columns
+        if columns:
+            df_analysis_values = {
+                "all_values": self.get_values(columns),
+                "unique_values": self.get_values(columns, unique=True),
+                "duplicate_values": [self.get_duplicates(columns)],
+                "overlap_values": self.get_overlap(columns),
+                "differences_symmetric": self.get_differences(columns, symmetric=True),
+                "differences_asymmetric": self.get_differences(
+                    columns, symmetric=False
+                ),
+            }
+            # Create a pandas DataFrame per analysis type
+            df_comparisons_dict = self.dict_to_df_dict(df_analysis_values)
+
+            # Add count columns
+
+            # Print analysis results
+            output += "\n"
+            for key, df in df_comparisons_dict.items():
+                formatted_key = key.replace("_", " ").title()
+                output += f"===================={formatted_key}====================\n"
+
+                # No values found for comparison
+                if df is None:
+                    output += "\nNo values found.\n\n"
+                    continue
+
+                # Add count column to duplicates and overlap dataframes
+                if key in ["duplicate_values", "overlap_values"]:
+                    df = self.add_counts_col(df, df_analysis_values["all_values"])
+
+                # When listing sets of columns, include index and
+                # headers
+                if key in ["all_values", "unique_values"]:
+                    output += df.to_string() + "\n"
+                elif len(df.columns) > 1:
+                    output += df.to_string(index=False) + "\n"
+                else:
+                    output += df.to_string(index=False, header=False) + "\n"
+
+                # Print additional info (and separator)
+                output += "........................\n"
+                output += f"Total values: {len(df.index)}\n"
+
+                # Get all values in df for printing
+                all_values = self.filter_list(
+                    utils.stringify_list(set(df.values.flatten())), self.filter_values
+                )
+
+                # Sort values - (Convert to int for accurate numeric
+                # sorting, then back to str for `join` method)
+                all_values = utils.stringify_list(
+                    utils.intify_list(all_values, sort=True)
+                )
+
+                output += "All values: " + ", ".join(all_values) + "\n"
+                if regex:
+                    output += f"Regex Pattern: {utils.Regex.create_regex_patern(all_values)}\n"
+
+                output += "\n"  # Spacing separator
+
+        return output, df_analysis_values, df_comparisons_dict
+
+    def dict_to_df_dict(
+        self,
+        data: dict,
+        key_name: str = "Set",
+        fill_na_str: str = "-----",
+    ) -> dict[str, pd.DataFrame]:
+        """
+        Converts all values in a dictionary to pandas `DataFrames`.
+
+        Either a `list` or nested `list` can be used with each key.
+        dictionary of pandas DataFrames.
+
+        For nested lists, the resulting `DataFrame` will contain
+        monotonically increasing headers for each value in the nested
+        list. The name of each header is determined by `key_name`. The
+        index is also aligned using the `_align_series_list()` method.
+
+        For single lists, the resulting `DataFrame` will contain a
+        single column with the name of the existing key.
+
+        Args:
+            data (dict): A `dict` where each key represents a
+                column name and each value is a nested or unnested
+                `list` of values.
+            key_name (str, optional): The name of the key to use
+                when creating headers for nested lists. Defaults
+                to "Set".
+            fill_na_str (str, optional): The string to use to fill
+                NaN values. Defaults to "-----".
+
+        Returns:
+            dict[str, pd.DataFrame]: A `dict` where each key represents
+                a column name and each value is a pandas `DataFrame`.
+        """
+        retdict = {}
+        for k, v in data.items():
+            # Empty values
+            if not v or not any(v):
+                retdict[k] = None
+                continue
+
+            if isinstance(v[0], list):
+                # Create headers and series from list
+                headers = [f"{key_name} {idx + 1}" for idx in range(len(v))]
+                series_list = self._create_series_from_list(v, headers=headers)
+
+                # Align all series
+                series_list = self.align_series_list(series_list)
+            else:
+                # For single column analysis, create a single Series
+                series_list = [self._create_series(v, name=k)]
+
+            df = pd.concat(series_list, axis=1)
+            retdict[k] = self.reindex_df(df).fillna(fill_na_str)
+
+        return retdict
+
+    def add_counts_col(self, df: pd.DataFrame, data: list[str | int]) -> pd.DataFrame:
+        """
+        Adds a count column to `df` for value occurrences in `data`.
+
+        Creates a new column in `df` containing the number of
+        occurrences of each value in `data`.
+
+        Args:
+            df1 (pd.DataFrame): The DataFrame to add the counts to.
+            data (list[str|int]): The data to count occurrences of.
+
+        Returns:
+            pd.DataFrame: The DataFrame with the counts column added.
+        """
+        if not data:
+            return df
+
+        # Create counts column for nested lists
+        if isinstance(data[0], list):
+            # Flatten and deduplicate each set of columns
+            data = [item for sublist in data for item in set(sublist)]
+
+            # Create counts column
+            counts = [
+                data.count(item)
+                for sublist in df.values.tolist()
+                for item in self.filter_list(sublist, self.filter_values)
+            ]
+        # Create counts column for single lists
+        else:
+            counts = [data.count(item) for item in df.values.flatten()]
+
+        df["Count"] = counts
+
+        return df
 
 
 class SproutsTable(Table):
@@ -708,7 +1011,7 @@ class SproutsTable(Table):
             -> list[list[int], list[int]]:
                 Get scan and shipment column values in the
                 specified columns.
-        _isolate_columns(df: pd.DataFrame) -> list[pd.DataFrame,
+        _update_sub_dfs(df: pd.DataFrame) -> list[pd.DataFrame,
             pd.DataFrame]:
                 Identifies "Scan" columns and "Shipment" columns in
                 `df`.
@@ -858,19 +1161,19 @@ class SproutsTable(Table):
 
         if scan_indices:
             # Get values in scan columns
-            scan_col_values = list(self.get_values(scan_indices))
+            scan_col_values = self.get_values(scan_indices)
         else:
             scan_col_values = []
 
         if shipment_indices:
             # Get values in shipment columns
-            shipment_col_values = list(self.get_values(shipment_indices))
+            shipment_col_values = self.get_values(shipment_indices)
         else:
             shipment_col_values = []
 
         return [scan_col_values, shipment_col_values]
 
-    def _isolate_columns(self, df: pd.DataFrame) -> list[pd.DataFrame, pd.DataFrame]:
+    def _update_sub_dfs(self, df: pd.DataFrame) -> list[pd.DataFrame, pd.DataFrame]:
         """
         Identifies "Scan" columns and "Shipment" columns in `df`.
 
@@ -895,8 +1198,8 @@ class SproutsTable(Table):
 
         # Check if any scan columns exist
         if not indices.get(self.scan_label):
-            logger.warning(
-                "No scan columns found in DataFrame passed to _isolate_columns()"
+            logger.debug(
+                "No scan columns found in DataFrame passed to _update_sub_dfs()"
             )
 
             # Add empty DataFrame to ret
@@ -917,7 +1220,7 @@ class SproutsTable(Table):
         # Check if any shipment columns exist
         if not indices.get(self.shipment_label):
             logger.warning(
-                "No shipment columns found in DataFrame passed to _isolate_columns()"
+                "No shipment columns found in DataFrame passed to _Update_sub_dfs()"
             )
 
             # Add empty DataFrame to ret
@@ -1045,7 +1348,7 @@ class SproutsTable(Table):
             self.hard_refresh()
 
         self.refresh_headers()
-        self.scan_df, self.shipment_df = self._isolate_columns(self.df)
+        self.scan_df, self.shipment_df = self._update_sub_dfs(self.df)
         self.df.apply(self._update_values, axis=1)
         logger.debug("Table refreshed.")
 
@@ -1076,7 +1379,7 @@ class SproutsTable(Table):
 
         if scan_cols and shipment_cols:
             # Get overlap of scan and shipment columns
-            intersection = set(scan_cols).intersection(shipment_cols)
+            intersection = list(set(scan_cols).intersection(shipment_cols))
 
             logger.info(
                 f"Found {len(intersection)} scan overlapping values "
@@ -1142,10 +1445,13 @@ class SproutsTable(Table):
 
             return []
 
+    def set_iloc(self, row: int | list[int], col: int | list[int], value: int) -> None:
+        super().set_iloc(row, col, value)
+        self.update_table(hard=True)
 
-class RegexTable(Table):
-    def __init__(self, filename: str, *args, **kwargs) -> None:
-        super().__init__(filename, *args, **kwargs)
+    def set_loc(self, row: str | list[str], col: str | list[str], value: int) -> None:
+        super().set_loc(row, col, value)
+        self.update_table(hard=True)
 
 
 def enable_full_pandas_output() -> None:

@@ -12,5 +12,7 @@ from .data_utils import (
     identify_delimiters,
     flatten_list,
     stringify_list,
-    intify_list
+    intify_list,
+    input_
 )
+from .regex import Regex

@@ -1,1 +1,1 @@
-from .sprouts_parser import Table, SproutsTable, enable_full_pandas_output
+from .tables import Table, SproutsTable, enable_full_pandas_output

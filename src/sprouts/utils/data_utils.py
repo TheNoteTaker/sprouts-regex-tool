@@ -29,7 +29,15 @@ def split_delimited_string(data: str, delimiters: list = []) -> list[list[str]]:
     """
     # Set default separators if none given
     if not delimiters:
-        delimiters, _, _ = identify_delimiters(data)
+        try:
+            delimiters, _, _ = identify_delimiters(data)
+        except TypeError:
+            # No delimiters found
+            logger.debug(
+                "No delimiters found in data. Likely only one "
+                "section exists. Data wil only be split by newlines."
+            )
+            return data.strip().split("\n")
 
     # Create regex pattern from delimiters
     re_pattern = "|".join(delimiters)
@@ -42,7 +50,7 @@ def split_delimited_string(data: str, delimiters: list = []) -> list[list[str]]:
     # Split data by delimiters, then remove newlines and create sections
     split_data = re.split(re_pattern, data)
     split_data = [section.split() for section in split_data]
-    
+
     logger.debug(f"Split data into {len(split_data)} sections.")
     return split_data
 
@@ -82,11 +90,11 @@ def identify_delimiters(data: str | list[str]) -> tuple[dict, str, str] | None:
         # Sort matches based on length to account for duplicate
         # characters (such as "-" and "--")
         matches.sort(key=len, reverse=True)
-        
+
         for match in matches:
             # get the count of each match
             match_counts[match] = data.count(match)
-            
+
             # Remove the match from the data
             data = data.replace(match, "")
 
@@ -94,13 +102,11 @@ def identify_delimiters(data: str | list[str]) -> tuple[dict, str, str] | None:
         max_delim = max(match_counts, key=match_counts.get)
         min_delim = min(match_counts, key=match_counts.get)
 
-        logger.debug(
-            f"Found the following delimiters: {match_counts}"
-        )
+        logger.debug(f"Found the following delimiters: {match_counts}")
         return match_counts, max_delim, min_delim
     else:
-        logger.debug(f"No delimiters found in data")
         # No delimiters found
+        logger.debug("No delimiters found in data")
         return None
 
 
@@ -122,102 +128,90 @@ def read_input_lines() -> list[str]:
     return [line.strip() for line in lines if line.strip() != ""]
 
 
+# Refactoring the 'input_' function for optimized and pythonic code
+
+
 def input_(
-    valid_input: list[str] | str = "",
-    invalid_input: list[str] | str = "",
+    constraint: list[str] | str,
     message: str = ">",
+    reverse_constraint: bool = False,
+    regex: bool = False,
+    total_attempts: int = -1,
 ) -> str:
     """
     Read input from the user and return it if it is valid.
 
-    `valid_input` is a `list` or regex pattern of valid inputs.
-    `invalid_input` is a `list` or regex pattern of invalid inputs.
-    Do not use both at the same time.
+    `constraint` is either a list of valid inputs or a regex pattern
+    of valid inputs. `constraint` can also be used to invalidate
+    input by setting `reverse_constraint` to `True`.
+
+    Optionally, `total_attempts` can be set to limit the number of
+    attempts the user has to enter valid input.
 
     Args:
-        message: The message to display to the user for each
-            input attempt.
-        valid_input: A list or regex pattern of valid inputs.
-        invalid_input: A list or regex pattern of invalid inputs.
+        message: The message to display to the user for each input
+            attempt. Defaults to `">"`.
+        constraint: A list or regex pattern of valid inputs if
+            `reverse_constraint` is `False`, or invalid inputs if
+            `reverse_constraint` is `True`.
+        reverse_constraint: Whether to reverse the constraint.
+            If `True`, then `constraint` will be checked against as
+            invalid inputs.
 
+            If `False`, then `constraint` will be checked against as
+            valid inputs.
+
+            Defaults to `False`.
+        regex: Whether to treat `constraint` as a regex pattern.
+        total_attempts: Total allowed attempts to get valid input. If
+            set to `-1`, then there is no limit to the number of
+            attempts. Defaults to `-1`.
     Returns:
         The user's input if it is valid.
     """
-    # Convert valid and invalid input lists to lowercase
-    if valid_input:
-        if isinstance(valid_input, list):
-            # List of valid input was provided and not a regex pattern
-            # Convert all items in the list to lowercase
-            valid_input = [str(item).casefold() for item in valid_input]
-    elif invalid_input:
-        if isinstance(invalid_input, list):
-            # List of invalid input was provided and not a regex pattern
-            # Convert all items in the list to lowercase
-            invalid_input = [str(item).casefold() for item in invalid_input]
-    elif valid_input and invalid_input:
-        # Both valid and invalid input was provided
-        logger.error(
-            "`input_` method requires either `valid_input` or `invalid_input`, "
-            f"not both. Current values - valid_input: {valid_input} - "
-            f"invalid_input: {invalid_input} - message: {message}"
-        )
-        raise ValueError("Only `valid_input` or `invalid_input` can be used, not both.")
-    else:
-        # Neither valid nor invalid input was provided
-        logger.error(
-            "`input_` method requires either `valid_input` or `invalid_input`."
-        )
-        raise ValueError("Either `valid_input` or `invalid_input` must be used.")
+    # Convert constraint to a list and a raw str if it is a string
+    if isinstance(constraint, str):
+        constraint = [rf"{constraint}"]
 
+    # Convert constraint list to str values
+    constraint = stringify_list(constraint)
+
+    # Convert constraint to a regex pattern if `regex` is `True`
+    if regex:
+        constraint = re.compile(f"^(?:{'|'.join(constraint)})$")
+
+        # Log constraint
+        logger.debug(
+            f"Getting user input with regex pattern constraint "
+            f"[reverse_constraint={reverse_constraint}]: {constraint.pattern}"
+        )
+
+    # Get input from the user
     while True:
-        # Read input from the user and check that it is either in the
-        # list or matches the regex pattern
-        user_input = input(f"{message} ")
-        invalid_message = "Invalid input, please try again."
-        total_attempts = 0
+        # Get input from the user
+        user_input = input(f"{message}")
 
-        if isinstance(valid_input, list) or isinstance(invalid_input, list):
-            # For lists of valid or invalid input instead of a regex pattern
-            if invalid_input and (user_input.casefold() in invalid_input):
-                # The user entered an invalid input from `invalid_input`,
-                # so ask them to try again
-                print(invalid_message)
-                total_attempts += 1
-                continue
-            elif valid_input and (user_input.casefold() in valid_input):
-                # The user entered a valid input, so return it
-                total_attempts += 1
-                logger.debug(
-                    f"Valid input provided after {total_attempts} "
-                    f"attempts: {user_input}"
-                )
-
+        # Check if input is valid
+        if regex:
+            # Check if input matches regex pattern
+            if bool(constraint.findall(user_input)) != reverse_constraint:
+                # Input is valid, so return it
                 return user_input
-            else:
-                # The user entered an invalid input, but it was not inside
-                # `invalid_input`, still ask them to try again
-                total_attempts += 1
-                print(invalid_message)
-                continue
-
         else:
-            # For a regex pattern instead of a list of valid or invalid inputs
-            if (valid_input and not re.search(valid_input, user_input)) or (
-                invalid_input and re.search(invalid_input, user_input)
-            ):
-                # The user entered an invalid input, so ask them to try
-                # again
-                total_attempts += 1
-                print("Invalid input, please try again.")
-                continue
-            else:
-                # The user entered a valid input, so return it
-                total_attempts += 1
-                logger.debug(
-                    f"Valid input provided after {total_attempts} "
-                    f"attempts: {user_input}"
-                )
+            # Check if input is in constraint
+            if (user_input in constraint) != reverse_constraint:
+                # Input is valid, so return it
                 return user_input
+
+        total_attempts -= 1
+        logger.debug(f"Invalid input given: {user_input}")
+
+        # Input is invalid
+        if total_attempts == 0:
+            logger.debug("Maximum number of attempts reached getting user "
+                         "input. Returning empty string.")
+            return ""
+
 
 def flatten_list(data: list[list], depth: int = 1) -> list:
     """
@@ -242,9 +236,12 @@ def flatten_list(data: list[list], depth: int = 1) -> list:
 
     return ret
 
+
 def intify_list(data: list, sort: bool = False) -> list:
     """
     Converts all values in a list to integers.
+
+    Discards any values that cannot be converted to integers.
 
     Args:
         data: The `list` to convert.
@@ -255,9 +252,10 @@ def intify_list(data: list, sort: bool = False) -> list:
         The converted `list`.
     """
     if sort:
-        return sorted([int(item) for item in data])
+        return sorted([int(item) for item in data if item.isnumeric()])
     else:
-        return [int(item) for item in data]
+        return [int(item) for item in data if item.isnumeric()]
+
 
 def stringify_list(data: list) -> list:
     """
@@ -270,3 +268,26 @@ def stringify_list(data: list) -> list:
         The converted `list`.
     """
     return [str(item) for item in data]
+
+
+def count_occurrences(data: list) -> dict:
+    """
+    Counts the number of occurrences of each value in a `list`.
+
+    Flattens the `data` before counting occurrences.
+
+    Args:
+        data: The `list` to count the occurrences of each value in.
+
+    Returns:
+        A `dict` containing the number of occurrences of each value in
+            the `list`.
+    """
+    counts = {}
+    for item in data:
+        if item in counts:
+            counts[item] += 1
+        else:
+            counts[item] = 1
+
+    return counts
