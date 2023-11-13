@@ -3,6 +3,10 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+name="sprouts-tool"
+version="0.1"
+description="A tool for parsing and manipulating shipments and scan shipments for sprouts"
+authors=["Austin Kaufman devguyrash@gmail.com"]
 dependencies = [
     "et-xmlfile==1.1.0",
     "numpy==1.26.1",
