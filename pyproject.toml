@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name="sprouts-tool"
+name="sprouts"
 version="0.1.0"
 description="A tool for parsing and manipulating shipments and scan shipments for sprouts"
 authors=[{name="Austin Kaufman", email="devguyrash@gmail.com"}]
