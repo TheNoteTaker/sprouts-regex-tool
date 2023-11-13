@@ -1,0 +1,18 @@
+all_values:
+['1', '1', '1', '2', '2', '3', '4', '4', '5', '6']
+
+unique_values:
+['4', '2', '3', '1', '5', '6']
+
+duplicate_values:
+[['4', '1', '2']]
+
+overlap_values:
+[]
+
+differences_symmetric:
+['3', '1', '5', '6']
+
+differences_asymmetric:
+[]
+

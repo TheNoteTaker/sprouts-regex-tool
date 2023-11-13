@@ -20,17 +20,9 @@
         }
     },
     "loggers": {
-        "sprouts_tool.utils": {
-            "level": "DEBUG",
-            "handlers": ["file"]
-        },
-        "sprouts_tool.parser": {
-            "level": "DEBUG",
-            "handlers": ["file"]
-        }
     },
     "root": {
-        "level": "WARNING",
-        "handlers": ["console"]
+        "level": "INFO",
+        "handlers": ["file"]
     }
 }
